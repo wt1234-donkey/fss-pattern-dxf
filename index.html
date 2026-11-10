@@ -38,7 +38,7 @@ function simpleRing(p){let grid=new Map(),cell=8,n=p.length;for(let i=0;i<n;i++)
 function ringConflict(a,b){let ax0=Infinity,ax1=-Infinity,ay0=Infinity,ay1=-Infinity,bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;for(let p of a){ax0=Math.min(ax0,p[0]);ax1=Math.max(ax1,p[0]);ay0=Math.min(ay0,p[1]);ay1=Math.max(ay1,p[1]);}for(let p of b){bx0=Math.min(bx0,p[0]);bx1=Math.max(bx1,p[0]);by0=Math.min(by0,p[1]);by1=Math.max(by1,p[1]);}if(ax1<bx0||bx1<ax0||ay1<by0||by1<ay0)return false;for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)if(segmentsMeet(a[i],a[(i+1)%a.length],b[j],b[(j+1)%b.length]))return true;return false;}
 function rasterize(loops,w,h){let mask=new Uint8Array(w*h);for(let loop of loops){let p=loop.points,min=h,max=0;for(let v of p){min=Math.min(min,v[1]);max=Math.max(max,v[1]);}for(let y=Math.max(0,Math.floor(min));y<Math.min(h,Math.ceil(max));y++){let intervals=spans(p,y+.5);if(!intervals)return null;for(let i=0;i<intervals.length;i+=2)for(let x=Math.max(0,intervals[i]);x<=Math.min(w-1,intervals[i+1]);x++)mask[y*w+x]^=1;}}return mask;}
 function topology(mask,w,h){let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),parts=[0,0];for(let i=0;i<mask.length;i++){if(seen[i])continue;let kind=mask[i],head=0,tail=1,touches=false;q[0]=i;seen[i]=1;while(head<tail){let k=q[head++],x=k%w,y=(k-x)/w;if(x===0||x===w-1||y===0||y===h-1)touches=true;for(let j of [x>0?k-1:-1,x<w-1?k+1:-1,y>0?k-w:-1,y<h-1?k+w:-1])if(j>=0&&!seen[j]&&mask[j]===kind){seen[j]=1;q[tail++]=j;}}if(kind)parts[0]++;else if(!touches)parts[1]++;}return parts;}
-function smoothContours(result,tolerance,settings={}){if(!(tolerance>0))return {...result,symmetry:detectSymmetry(result,settings.symmetryThreshold),symmetryStraightened:0,symmetryVerticesRemoved:0,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
+function smoothContours(result,tolerance,settings={}){if(!(tolerance>0))return {...result,symmetry:detectSymmetry(result,settings.symmetryThreshold),symmetryStraightened:0,symmetryVerticesRemoved:0,symmetrySnappedSegments:0,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
 // If any one sharp corner, rounded tip, hole, or slit rejects a global fit,
 // simplify other long straight spans independently rather than reverting all
 // diagonals in the same closed loop to staircase edges.
@@ -68,7 +68,7 @@ for(let k=0;k<loops.length;k++){
  if(fitted.length<original.length){loops[k].points=fitted;diffs[k]=mismatch;}
 }
 let changed=diffs.reduce((a,b)=>a+b,0);if(changed){let originalTopology=topology(result.mask,result.w,result.h),retries=0;while(retries++<loops.length){let drawn=rasterize(loops,result.w,result.h);if(drawn){let candidateTopology=topology(drawn,result.w,result.h);if(candidateTopology.every((n,i)=>n===originalTopology[i]))break;}let idx=0;for(let i=1;i<diffs.length;i++)if(diffs[i]>diffs[idx])idx=i;if(diffs[idx]===0)break;loops[idx]=result.loops[idx];diffs[idx]=0;}}
-let symmetry=detectSymmetry(result,settings.symmetryThreshold);let symmetryFix=settings.symmetryMode==='observe'||settings.symmetryMode==='off'?{count:0,removed:0}:symmetryAssistedStraightening(result,loops,diffs,symmetry);let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,symmetry,symmetryStraightened:symmetryFix.count,symmetryVerticesRemoved:symmetryFix.removed,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
+let symmetry=detectSymmetry(result,settings.symmetryThreshold);let symmetryFix=settings.symmetryMode==='observe'||settings.symmetryMode==='off'?{count:0,removed:0}:symmetryAssistedStraightening(result,loops,diffs,symmetry);let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,symmetry,symmetryStraightened:symmetryFix.count,symmetryVerticesRemoved:symmetryFix.removed,symmetrySnappedSegments:symmetryFix.snapped||0,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
 
 function findDiagonalStaircaseRuns(points,tolerance){
  const n=points.length;if(n<14)return [];
@@ -241,13 +241,13 @@ function mirrorSymmetryPoint(p,axis,b){
          axis==='vertical'?p[1]:b[1]+b[3]-p[1]];
 }
 function symmetryAssistedStraightening(raw,loops,diffs,info){
- let count=0,removed=0;
- if(!info.axes.length||!loops.length)return {count,removed};
+ let count=0,removed=0,snapped=0;
+ if(!info.axes.length||!loops.length)return {count,removed,snapped};
  const originalLoops=cloneLoops(loops),bbox=raw.bounds,reference=topology(raw.mask,raw.w,raw.h);
  const bounds=p=>p.reduce((box,q)=>[Math.min(box[0],q[0]),Math.min(box[1],q[1]),Math.max(box[2],q[0]),Math.max(box[3],q[1])],[Infinity,Infinity,-Infinity,-Infinity]);
  const boxes=originalLoops.map(l=>bounds(l.points));
  let currentMask=rasterize(loops,raw.w,raw.h);
- if(!currentMask)return {count,removed};
+ if(!currentMask)return {count,removed,snapped};
  // Prefer using mirrored straight edges before ordinary staircase regression.
  for(const axis of info.axes){
   const partners=boxes.map((box,k)=>{
@@ -300,27 +300,40 @@ function symmetryAssistedStraightening(raw,loops,diffs,info){
      }
     }
     if(!bestArc)continue;
-    const drop=new Set(bestArc.indexes),updated=p.filter((_,i)=>!drop.has(i));
-    if(updated.length<3||Math.sign(area(updated))!==Math.sign(area(raw.loops[destination].points))||!simpleRing(updated))continue;
-    if(loops.some((l,j)=>j!==destination&&ringConflict(updated,l.points)&&!ringConflict(raw.loops[destination].points,raw.loops[j].points)))continue;
-    const trial=loops.map((l,j)=>j===destination?{...l,points:updated}:l),newMask=rasterize(trial,raw.w,raw.h);
-    if(!newMask||!topology(newMask,raw.w,raw.h).every((n,i)=>n===reference[i]))continue;
-    let changed=0,unsafe=false;
-    for(let i=0;i<newMask.length;i++)if(newMask[i]!==currentMask[i]){
-     if(++changed>Math.max(8,Math.ceil(bestArc.chord*.18))||narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+    const drop=new Set(bestArc.indexes),shortcut=p.filter((_,i)=>!drop.has(i));
+    // Prefer exact reflected endpoints when they are already close, but
+    // preserve the original ring bounding box and fall back to the safe
+    // unsnapped straight chord if exact mirroring would damage geometry.
+    const exact=p.map((pt,i)=>i===ia?mirroredA.slice():i===ib?mirroredB.slice():pt).filter((_,i)=>!drop.has(i));
+    const inputBox=bounds(p);
+    const allowExact=Math.hypot(p[ia][0]-mirroredA[0],p[ia][1]-mirroredA[1])<=1.75
+     &&Math.hypot(p[ib][0]-mirroredB[0],p[ib][1]-mirroredB[1])<=1.75
+     &&bounds(exact).every((v,i)=>Math.abs(v-inputBox[i])<1e-8);
+    let accepted=false;
+    for(const choice of (allowExact?[{points:exact,exact:true},{points:shortcut,exact:false}]:[{points:shortcut,exact:false}])){
+     const updated=choice.points;
+     if(updated.length<3||Math.sign(area(updated))!==Math.sign(area(raw.loops[destination].points))||!simpleRing(updated))continue;
+     if(loops.some((l,j)=>j!==destination&&ringConflict(updated,l.points)&&!ringConflict(raw.loops[destination].points,raw.loops[j].points)))continue;
+     const trial=loops.map((l,j)=>j===destination?{...l,points:updated}:l),newMask=rasterize(trial,raw.w,raw.h);
+     if(!newMask||!topology(newMask,raw.w,raw.h).every((n,i)=>n===reference[i]))continue;
+     let changed=0,unsafe=false;
+     for(let i=0;i<newMask.length;i++)if(newMask[i]!==currentMask[i]){
+      if(++changed>Math.max(8,Math.ceil(bestArc.chord*.18))||narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+     }
+     if(unsafe)continue;
+     const budget=Math.max(25,Math.min(850,Math.round(raw.loops[destination].points.length*.4)));
+     const delta=rasterDifference(raw.loops[destination].points,updated,raw.mask,raw.w,raw.h,budget,false);
+     if(!Number.isFinite(delta))continue;
+     removed+=p.length-updated.length;count++;if(choice.exact)snapped++;
+     loops[destination]={...loops[destination],points:updated};
+     diffs[destination]=delta;currentMask=newMask;accepted=true;break;
     }
-    if(unsafe)continue;
-    const budget=Math.max(25,Math.min(850,Math.round(raw.loops[destination].points.length*.4)));
-    const delta=rasterDifference(raw.loops[destination].points,updated,raw.mask,raw.w,raw.h,budget,false);
-    if(!Number.isFinite(delta))continue;
-    removed+=p.length-updated.length;count++;
-    loops[destination]={...loops[destination],points:updated};
-    diffs[destination]=delta;currentMask=newMask;
-    if(count>=80)return {count,removed};
+    if(!accepted)continue;
+    if(count>=80)return {count,removed,snapped};
    }
   }
  }
- return {count,removed};
+ return {count,removed,snapped};
 }
 
 function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)),opt);}
@@ -357,7 +370,7 @@ if(sym){
  const percent=n=>(100*n).toFixed(1)+'%';
  const labels={vertical:'左右镜像',horizontal:'上下镜像',rotation:'中心对称'};
  const matches=sym.axes.map(axis=>labels[axis]).join('、');
- $('symmetryInfo').textContent='吻合度：左右 '+percent(sym.scores.vertical)+' · 上下 '+percent(sym.scores.horizontal)+' · 中心 '+percent(sym.scores.rotation)+'；阈值 '+percent(sym.threshold)+'。'+(matches?'检测到：'+matches+'。':'未达到近似对称阈值。')+(result.symmetryStraightened?' 已使用对称直线替换 '+result.symmetryStraightened+' 段阶梯路径。':'');
+ $('symmetryInfo').textContent='吻合度：左右 '+percent(sym.scores.vertical)+' · 上下 '+percent(sym.scores.horizontal)+' · 中心 '+percent(sym.scores.rotation)+'；阈值 '+percent(sym.threshold)+'。'+(matches?'检测到：'+matches+'。':'未达到近似对称阈值。')+(result.symmetryStraightened?' 已使用对称直线替换 '+result.symmetryStraightened+' 段阶梯路径'+(result.symmetrySnappedSegments?'，其中 '+result.symmetrySnappedSegments+' 段采用精确镜像端点':'')+'。':'');
  if(result.symmetryStraightened)warnings.push('对称辅助修复 '+result.symmetryStraightened+' 段阶梯线，移除 '+result.symmetryVerticesRemoved+' 个冗余顶点。');
 }
 let pending=result.loops.filter(q=>q.open).length;if(pending)warnings.push('手动编辑中有 '+pending+' 条未闭合轮廓，DXF 导出已禁用。');let b=bounds();if(result.w!==b.w||result.h!==b.h)warnings.push('图片已降采样；小于一个处理像素的线或缝可能丢失。');if(result.diagonal)warnings.push('存在 '+result.diagonal+' 处仅角点接触，请检查连接关系。');if(result.removed)warnings.push('已删除 '+result.removed+' 个小金属区域。');if(result.straightenedRuns)warnings.push('已修正 '+result.straightenedRuns+' 段斜直线，移除 '+result.staircaseVerticesRemoved+' 个像素阶梯顶点。');if(result.changedPixels)warnings.push('直线拟合调整了约 '+result.changedPixels+' 个边界像素的覆盖；导出前请对照原图检查窄缝。');if(points>20000)warnings.push('顶点较多，CAD 导入可能较慢。');if(!$('lock').checked&&Math.abs(height/width-ratio())>1e-6)warnings.push('当前宽高与原图比例不同，将分别缩放 X / Y。');setStatus(warnings.length?warnings.join('\n'):'已生成 '+result.loops.length+' 条闭合轮廓。孔洞保留，坐标已转换为毫米。',warnings.length?'warn':'ok');updateEditorControls();draw();}catch(e){geometry=null;segments=[];clearDownload();disable(false);renderSegments();setStatus(e.message,'error');}}
@@ -526,7 +539,7 @@ function adjustEditorZoom(target,clientX,clientY){
 }
 
 function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.4.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value==='fit'?Number($('fitTolerance').value):0,symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
+function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.4.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value==='fit'?Number($('fitTolerance').value):0,symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
 $('export').onclick=e=>{if(!geometry||busy||!dxfContent){e.preventDefault();return;}$('exportStatus').textContent='已请求下载：'+$('export').download+'。如未保存，请点击“直接下载 DXF 文件”。';};$('saveAs').onclick=async()=>{if(!geometry||busy||!dxfContent)return;let name=$('directDownload').download;if(typeof window.showSaveFilePicker==='function'){try{let handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'DXF CAD 图案',accept:{'application/dxf':['.dxf']}}]});let stream=await handle.createWritable();await stream.write(new Blob([dxfContent],{type:'application/dxf'}));await stream.close();$('exportStatus').textContent='已保存：'+name;return;}catch(err){$('exportStatus').textContent=err.name==='AbortError'?'已取消保存。':'浏览器未允许另存为：'+err.message+'。请点击“直接下载 DXF 文件”。';return;}}$('exportStatus').textContent='正在请求下载：'+name+'。若未保存，请点击“直接下载 DXF 文件”。';$('directDownload').click();};$('directDownload').onclick=()=>{if(!geometry||busy)return false;$('exportStatus').textContent='已请求直接下载：'+$('directDownload').download+'。如仍被浏览器阻止，请使用 DXF 文本备用入口。';};$('copyDxf').onclick=async()=>{if(!dxfContent)return;try{await navigator.clipboard.writeText(dxfContent);$('exportStatus').textContent='DXF 文本已复制，请保存为 .dxf 文件。';}catch(e){$('dxfText').focus();$('dxfText').select();$('exportStatus').textContent='请复制已选中的 DXF 文本，保存为 .dxf 文件。';}};document.querySelector('.download-help').addEventListener('toggle',e=>{if(e.target.open)$('dxfText').value=dxfContent;});$('segmentCsv').onclick=()=>{if(!segments.length)return;let rows=['ID,loop_type,x1_mm,y1_mm,x2_mm,y2_mm,dx_mm,dy_mm,length_mm',...segments.map(s=>[segmentId(s),s.hole?'hole':'outer',s.x1,s.y1,s.x2,s.y2,s.dx,s.dy,s.length].join(','))];download('\ufeff'+rows.join('\r\n'),imageName+'_segments.csv','text/csv;charset=utf-8');};$('report').onclick=()=>{if(geometry&&!busy)download(JSON.stringify(report(),null,2),imageName+'_parameters.json','application/json');};$('offline').onclick=()=>download('<!doctype html>\n'+document.documentElement.outerHTML,'FSS_Pattern_Lab.html','text/html');
 function resetCrop(){for(let [id,v] of [['cropX',0],['cropY',0],['cropW',source.width],['cropH',source.height]])$(id).value=v;}
 function demo(){request++;source.width=400;source.height=400;let c=source.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,400,400);c.fillStyle='#111';c.fillRect(60,60,280,280);c.fillStyle='#fff';c.fillRect(105,105,190,190);c.fillStyle='#111';c.fillRect(180,180,40,40);imageName='fss_demo';renderThumbnail();$('filename').textContent='示例：带孔方环 + 中心金属岛 · 400 × 400 px';$('materialMode').value='gray';showMaterialSettings();$('polarity').value='dark';$('threshold').value=127;$('minPixels').value=1;resetCrop();schedule();}
