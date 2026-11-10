@@ -164,5 +164,76 @@ assert.throws(()=>C.editContours(manualSquare,{type:'connect',loopIndex:0,from:0
 assert.throws(()=>C.editContours(draft,{type:'removeSegment',loopIndex:0,index:0}));
 assert.throws(()=>C.editContours(manualSquare,{type:'insertVertex',loopIndex:0,index:0,x:0,y:0}));
 assert.equal(C.cloneLoops(manualSquare)[0].points[0][0],0);
+
+// Symmetry assisted straight lines: detect vertical/horizontal/180-degree
+// symmetry from foreground pixels, and do not infer symmetry for arbitrary art.
+function symmetryImage(n,which){
+ const rgba=new Uint8ClampedArray(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const diamond=Math.abs(x-89.5)+Math.abs(y-89.5)<58;
+  const hole=x>=80&&x<100&&y>=82&&y<98;
+  const ramp=y>=20&&y<145&&x>=40+Math.floor((y-20)/6)&&x<140-Math.floor((y-20)/6);
+  const asymmetric=x>15&&x<100&&y>15&&y<130&&x+y>100&&!(x>70&&x<90&&y<40);
+  const metal=which==='diamond'?diamond:which==='diamond-hole'?diamond&&!hole:which==='vertical'?ramp:asymmetric;
+  const v=metal?0:255,i=4*(y*n+x);
+  rgba.set([v,v,v,255],i);
+ }
+ return rgba;
+}
+const diamondImage=symmetryImage(180,'diamond');
+const diamondRaw=C.vectorize(diamondImage,180,180,{threshold:127,smooth:false});
+for(const axis of ['vertical','horizontal','rotation'])assert.equal(diamondRaw.symmetry.scores[axis],1);
+assert.deepEqual(diamondRaw.symmetry.axes,['vertical','horizontal','rotation']);
+const diamondWithHole=C.vectorize(symmetryImage(180,'diamond-hole'),180,180,{threshold:127,smooth:false});
+assert.equal(diamondWithHole.loops.filter(q=>q.hole).length,1);
+assert.equal(diamondWithHole.symmetry.axes.length,3);
+const verticalOnly=C.vectorize(symmetryImage(180,'vertical'),180,180,{threshold:127,smooth:false});
+assert.deepEqual(verticalOnly.symmetry.axes,['vertical']);
+const asymmetric=C.vectorize(symmetryImage(180,'asymmetric'),180,180,{threshold:127,smooth:false});
+assert.deepEqual(asymmetric.symmetry.axes,[]);
+assert.equal(asymmetric.symmetryStraightened,0);
+// Retain three clean mirrored diamond edges but leave one raster staircase:
+// symmetry-matched lines must replace it rather than leaving pixel segments.
+const diamondPoints=diamondRaw.loops[0].points,extremeIds=[0,1].flatMap(axis=>[-1,1].map(sign=>
+ diamondPoints.reduce((best,p,i)=>sign*p[axis]>sign*diamondPoints[best][axis]?i:best,0))).sort((a,b)=>a-b);
+const selected=new Set(extremeIds);
+for(let i=extremeIds[1]+1;i<extremeIds[2];i++)selected.add(i);
+const hybrid=diamondPoints.filter((_,i)=>selected.has(i));
+const symmetryLoops=[{hole:diamondRaw.loops[0].hole,points:hybrid.map(p=>p.slice())}];
+const diff=[0],symFix=C.symmetryAssistedStraightening(diamondRaw,symmetryLoops,diff,diamondRaw.symmetry);
+assert(symFix.count>0);
+assert(symFix.removed>=30);
+assert(symmetryLoops[0].points.length<hybrid.length/2);
+assert.equal(Math.sign(C.area(symmetryLoops[0].points)),Math.sign(C.area(diamondPoints)));
+const symmetricGeometry=C.scale({...diamondRaw,loops:symmetryLoops},
+ {width:8,height:8,reference:'image',center:true});
+assert(C.dxf(symmetricGeometry).includes('LWPOLYLINE'));
+assert.equal(C.measureSegments(symmetricGeometry).length,symmetryLoops[0].points.length);
+// Exact pixel mode continues to give unchanged pixel boundaries even when
+// the pattern is perfectly symmetric; user manual edits remain separate.
+assert.equal(diamondRaw.symmetryStraightened,0);
+assert.equal(diamondRaw.loops[0].points.length,diamondPoints.length);
+const observe=C.vectorize(diamondImage,180,180,{threshold:127,symmetryMode:'observe'});
+const disabled=C.vectorize(diamondImage,180,180,{threshold:127,symmetryMode:'off'});
+assert.deepEqual(observe.loops,disabled.loops);
+assert.equal(observe.symmetryStraightened,0);
+assert.equal(disabled.symmetryStraightened,0);
+
+// Changing the symmetry confidence threshold changes whether a near-symmetric
+// mask qualifies; the detector must not silently force symmetry at 99%.
+let thresholdImage=new Uint8ClampedArray(140*140*4);
+for(let y=0;y<140;y++)for(let x=0;x<140;x++){
+ let metal=x>=20&&x<120&&y>=20&&y<120&&!(x>=20&&x<30&&y>=20&&y<50);
+ let v=metal?0:255,i=4*(y*140+x);thresholdImage.set([v,v,v,255],i);
+}
+let looseSymmetry=C.vectorize(thresholdImage,140,140,{threshold:127,smooth:false,symmetryThreshold:.95});
+let strictSymmetry=C.vectorize(thresholdImage,140,140,{threshold:127,smooth:false,symmetryThreshold:.99});
+assert(looseSymmetry.symmetry.axes.includes('vertical'));
+assert(!strictSymmetry.symmetry.axes.includes('vertical'));
+assert.equal(looseSymmetry.symmetryStraightened,0);
+let repairedHole=C.vectorize(symmetryImage(180,'diamond-hole'),180,180,{threshold:127,symmetryMode:'auto'});
+assert.equal(repairedHole.loops.filter(l=>l.hole).length,1);
+assert.equal(typeof repairedHole.symmetrySnappedSegments,'number');
+assert.equal(C.openContours(C.scale(repairedHole,{width:8,height:8,reference:'image',center:true})),false);
 const dir=process.argv[2];if(dir){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/fss_demo_20x20mm.dxf',C.dxf(g));fs.writeFileSync(dir+'/fss_demo_lines.dxf',C.dxf(g,{entity:'LINE',guide:true}));fs.writeFileSync(dir+'/fss_demo_parameters.json',JSON.stringify({unit:'mm',cell_mm:[20,20],metal_bounds_mm:[-7,-7,7,7],loops:g.loops},null,2));}
 console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and four holes; color validation; 45-degree fitting; 1px slit; scaling; winding; alpha; polarity; denoising');
