@@ -94,5 +94,36 @@ assert(!polyDxf.includes(String.fromCharCode(13,10)+'42'+String.fromCharCode(13,
 let lineDxf=C.dxf(physical,{entity:'LINE'});
 assert.equal(lineDxf.split('AcDbLine'+String.fromCharCode(13,10)).length-1,measuredSlanted.length);
 assert.deepEqual(smoothSlit.loops,exactSlit.loops);
+// A pixel-staircase with a repeated 3 px raster-threshold spur used to
+// force whole-ring fallback. Long diagonal runs must be straightened locally.
+let noisyN=320,noisyImage=new Uint8ClampedArray(noisyN*noisyN*4);
+for(let y=0;y<noisyN;y++)for(let x=0;x<noisyN;x++){
+ const metal=x>12&&x<307&&y>12&&y<307&&x+y>125+(x%19===0?3:0)&&x+y<420
+       &&!(x>115&&x<206&&y>115&&y<206);
+ const v=metal?0:255,i=(y*noisyN+x)*4;
+ noisyImage.set([v,v,v,255],i);
+}
+let noisyExact=C.vectorize(noisyImage,noisyN,noisyN,{threshold:127,smooth:false});
+let noisyFixed=C.vectorize(noisyImage,noisyN,noisyN,{threshold:127,tolerance:1.25});
+let vertices=x=>x.loops.reduce((s,q)=>s+q.points.length,0);
+assert(vertices(noisyExact)>500);
+assert(vertices(noisyFixed)<130, 'threshold spikes should not create hundreds of DXF segments');
+assert.equal(noisyFixed.loops.length,noisyExact.loops.length);
+assert.equal(noisyFixed.loops.filter(q=>q.hole).length,1);
+assert(noisyFixed.straightenedRuns>0);
+assert(noisyFixed.staircaseVerticesRemoved>300);
+for(let loop of noisyFixed.loops){
+ assert(loop.points.length>=3);
+ assert.equal(C.area(loop.points)>0,loop.hole);
+}
+let noisyGeometry=C.scale(noisyFixed,{width:8,height:8,reference:'image',center:true});
+let noisySegments=C.measureSegments(noisyGeometry);
+assert.equal(noisySegments.length,vertices(noisyFixed));
+assert(noisySegments.every(s=>s.length>0&&Number.isFinite(s.length)));
+assert.equal(C.dxf(noisyGeometry).split('LWPOLYLINE').length-1,noisyFixed.loops.length);
+assert.equal(C.dxf(noisyGeometry,{entity:'LINE'}).split('AcDbLine'+String.fromCharCode(13,10)).length-1,noisySegments.length);
+assert(!C.dxf(noisyGeometry).includes(String.fromCharCode(13,10)+'42'+String.fromCharCode(13,10)));
+// The user-facing pixel-exact mode and one-pixel open slit must remain intact.
+assert.deepEqual(smoothSlit.loops,exactSlit.loops);
 const dir=process.argv[2];if(dir){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/fss_demo_20x20mm.dxf',C.dxf(g));fs.writeFileSync(dir+'/fss_demo_lines.dxf',C.dxf(g,{entity:'LINE',guide:true}));fs.writeFileSync(dir+'/fss_demo_parameters.json',JSON.stringify({unit:'mm',cell_mm:[20,20],metal_bounds_mm:[-7,-7,7,7],loops:g.loops},null,2));}
 console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and four holes; color validation; 45-degree fitting; 1px slit; scaling; winding; alpha; polarity; denoising');
