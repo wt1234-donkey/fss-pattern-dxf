@@ -295,12 +295,7 @@ function symmetryAssistedStraightening(raw,loops,diffs,info){
     // Prefer exact reflected endpoints when they are already close, but
     // preserve the original ring bounding box and fall back to the safe
     // unsnapped straight chord if exact mirroring would damage geometry.
-    const mirrored=p.filter((_,i)=>!drop.has(i)).map((pt,i,arr)=>pt);
-    const exact=p.filter((_,i)=>!drop.has(i)).map((pt,j)=>{
-     // Track original vertex identity through the deleted staircase span.
-     const originalIndex=p.indexOf(pt);
-     return originalIndex===ia?mirroredA.slice():originalIndex===ib?mirroredB.slice():pt;
-    });
+    const exact=p.map((pt,i)=>i===ia?mirroredA.slice():i===ib?mirroredB.slice():pt).filter((_,i)=>!drop.has(i));
     const inputBox=bounds(p);
     const allowExact=Math.hypot(p[ia][0]-mirroredA[0],p[ia][1]-mirroredA[1])<=1.75
      &&Math.hypot(p[ib][0]-mirroredB[0],p[ib][1]-mirroredB[1])<=1.75
