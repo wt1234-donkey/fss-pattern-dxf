@@ -29,7 +29,7 @@ function simpleRing(p){let grid=new Map(),cell=8,n=p.length;for(let i=0;i<n;i++)
 function ringConflict(a,b){let ax0=Infinity,ax1=-Infinity,ay0=Infinity,ay1=-Infinity,bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;for(let p of a){ax0=Math.min(ax0,p[0]);ax1=Math.max(ax1,p[0]);ay0=Math.min(ay0,p[1]);ay1=Math.max(ay1,p[1]);}for(let p of b){bx0=Math.min(bx0,p[0]);bx1=Math.max(bx1,p[0]);by0=Math.min(by0,p[1]);by1=Math.max(by1,p[1]);}if(ax1<bx0||bx1<ax0||ay1<by0||by1<ay0)return false;for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)if(segmentsMeet(a[i],a[(i+1)%a.length],b[j],b[(j+1)%b.length]))return true;return false;}
 function rasterize(loops,w,h){let mask=new Uint8Array(w*h);for(let loop of loops){let p=loop.points,min=h,max=0;for(let v of p){min=Math.min(min,v[1]);max=Math.max(max,v[1]);}for(let y=Math.max(0,Math.floor(min));y<Math.min(h,Math.ceil(max));y++){let intervals=spans(p,y+.5);if(!intervals)return null;for(let i=0;i<intervals.length;i+=2)for(let x=Math.max(0,intervals[i]);x<=Math.min(w-1,intervals[i+1]);x++)mask[y*w+x]^=1;}}return mask;}
 function topology(mask,w,h){let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),parts=[0,0];for(let i=0;i<mask.length;i++){if(seen[i])continue;let kind=mask[i],head=0,tail=1,touches=false;q[0]=i;seen[i]=1;while(head<tail){let k=q[head++],x=k%w,y=(k-x)/w;if(x===0||x===w-1||y===0||y===h-1)touches=true;for(let j of [x>0?k-1:-1,x<w-1?k+1:-1,y>0?k-w:-1,y<h-1?k+w:-1])if(j>=0&&!seen[j]&&mask[j]===kind){seen[j]=1;q[tail++]=j;}}if(kind)parts[0]++;else if(!touches)parts[1]++;}return parts;}
-function smoothContours(result,tolerance){if(!(tolerance>0))return {...result,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
+function smoothContours(result,tolerance,settings={}){if(!(tolerance>0))return {...result,symmetry:detectSymmetry(result,settings.symmetryThreshold),symmetryStraightened:0,symmetryVerticesRemoved:0,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
 // If any one sharp corner, rounded tip, hole, or slit rejects a global fit,
 // simplify other long straight spans independently rather than reverting all
 // diagonals in the same closed loop to staircase edges.
@@ -59,7 +59,7 @@ for(let k=0;k<loops.length;k++){
  if(fitted.length<original.length){loops[k].points=fitted;diffs[k]=mismatch;}
 }
 let changed=diffs.reduce((a,b)=>a+b,0);if(changed){let originalTopology=topology(result.mask,result.w,result.h),retries=0;while(retries++<loops.length){let drawn=rasterize(loops,result.w,result.h);if(drawn){let candidateTopology=topology(drawn,result.w,result.h);if(candidateTopology.every((n,i)=>n===originalTopology[i]))break;}let idx=0;for(let i=1;i<diffs.length;i++)if(diffs[i]>diffs[idx])idx=i;if(diffs[idx]===0)break;loops[idx]=result.loops[idx];diffs[idx]=0;}}
-let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
+let symmetry=detectSymmetry(result,settings.symmetryThreshold);let symmetryFix=settings.symmetryMode==='observe'||settings.symmetryMode==='off'?{count:0,removed:0}:symmetryAssistedStraightening(result,loops,diffs,symmetry);let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,symmetry,symmetryStraightened:symmetryFix.count,symmetryVerticesRemoved:symmetryFix.removed,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
 
 function findDiagonalStaircaseRuns(points,tolerance){
  const n=points.length;if(n<14)return [];
@@ -210,7 +210,111 @@ function editContours(source,action){
 }
 function openContours(g){return g.loops.some(q=>q.open);}
 
-function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)));}
+
+function detectSymmetry(result,threshold=.94){
+ const t=Number.isFinite(threshold)?Math.max(.85,Math.min(.995,threshold)):.94;
+ const [x0,y0,x1,y1]=result.bounds,axes=['vertical','horizontal','rotation'],scores={vertical:0,horizontal:0,rotation:0};
+ if(result.pixels<20||x1-x0<8||y1-y0<8)return {threshold:t,scores,axes:[],center:[(x0+x1)/2,(y0+y1)/2]};
+ const {mask,w}=result,matched={vertical:0,horizontal:0,rotation:0};
+ // Compare metal with its reflection, not the mostly empty image background.
+ // The axes are fixed at the metal-region bounding box center, in pixel space.
+ for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+  if(!mask[y*w+x])continue;
+  if(mask[y*w+x0+x1-1-x])matched.vertical++;
+  if(mask[(y0+y1-1-y)*w+x])matched.horizontal++;
+  if(mask[(y0+y1-1-y)*w+x0+x1-1-x])matched.rotation++;
+ }
+ for(const axis of axes)scores[axis]=matched[axis]/result.pixels;
+ return {threshold:t,scores,axes:axes.filter(axis=>scores[axis]>=t),center:[(x0+x1)/2,(y0+y1)/2]};
+}
+function mirrorSymmetryPoint(p,axis,b){
+ return [axis==='horizontal'?p[0]:b[0]+b[2]-p[0],
+         axis==='vertical'?p[1]:b[1]+b[3]-p[1]];
+}
+function symmetryAssistedStraightening(raw,loops,diffs,info){
+ let count=0,removed=0;
+ if(!info.axes.length||!loops.length)return {count,removed};
+ const originalLoops=cloneLoops(loops),bbox=raw.bounds,reference=topology(raw.mask,raw.w,raw.h);
+ const bounds=p=>p.reduce((box,q)=>[Math.min(box[0],q[0]),Math.min(box[1],q[1]),Math.max(box[2],q[0]),Math.max(box[3],q[1])],[Infinity,Infinity,-Infinity,-Infinity]);
+ const boxes=originalLoops.map(l=>bounds(l.points));
+ let currentMask=rasterize(loops,raw.w,raw.h);
+ if(!currentMask)return {count,removed};
+ // Prefer using mirrored straight edges before ordinary staircase regression.
+ for(const axis of info.axes){
+  const partners=boxes.map((box,k)=>{
+   const mirrorBox=bounds([mirrorSymmetryPoint([box[0],box[1]],axis,bbox),mirrorSymmetryPoint([box[2],box[3]],axis,bbox)]);
+   let best=-1,distance=Infinity;
+   for(let j=0;j<boxes.length;j++){
+    if(originalLoops[k].hole!==originalLoops[j].hole||originalLoops[j].open)continue;
+    const delta=Math.max(...mirrorBox.map((v,i)=>Math.abs(v-boxes[j][i])));
+    const extent=Math.max(box[2]-box[0],box[3]-box[1]);
+    if(delta<=Math.max(3,Math.min(6,extent*.025))&&delta<distance){distance=delta;best=j;}
+   }
+   return best;
+  });
+  for(let sourceIndex=0;sourceIndex<originalLoops.length;sourceIndex++){
+   const destination=partners[sourceIndex];if(destination<0)continue;
+   const src=originalLoops[sourceIndex].points;
+   for(let edge=0;edge<src.length;edge++){
+    const a=src[edge],b=src[(edge+1)%src.length],dx=b[0]-a[0],dy=b[1]-a[1];
+    // Only borrow genuine long diagonal CAD edges, never short rounded tips.
+    if(Math.abs(dx)<12||Math.abs(dy)<12||Math.hypot(dx,dy)<18)continue;
+    const p=loops[destination].points,n=p.length;
+    if(n<8)continue;
+    const mirroredA=mirrorSymmetryPoint(a,axis,bbox),mirroredB=mirrorSymmetryPoint(b,axis,bbox);
+    function nearestPoint(target){
+     let best=-1,distance=3.2*3.2;
+     for(let i=0;i<n;i++){
+      const d=(p[i][0]-target[0])**2+(p[i][1]-target[1])**2;
+      if(d<distance){distance=d;best=i;}
+     }
+     return best;
+    }
+    const ia=nearestPoint(mirroredA),ib=nearestPoint(mirroredB);
+    if(ia<0||ib<0||ia===ib)continue;
+    let bestArc=null;
+    for(const [start,end] of [[ia,ib],[ib,ia]]){
+     const u=p[start],v=p[end],chord=Math.hypot(v[0]-u[0],v[1]-u[1]);
+     if(chord<16)continue;
+     let indexes=[],pathLength=0,deviation=0,t=start;
+     for(let guard=0;guard<n&&t!==end;guard++){
+      const next=(t+1)%n;
+      pathLength+=Math.hypot(p[next][0]-p[t][0],p[next][1]-p[t][1]);
+      if(next!==end){
+       indexes.push(next);
+       deviation=Math.max(deviation,Math.abs((v[0]-u[0])*(p[next][1]-u[1])-(v[1]-u[1])*(p[next][0]-u[0]))/chord);
+      }
+      t=next;
+     }
+     if(indexes.length>=3&&deviation<=3.4&&pathLength>chord*1.055&&pathLength<chord*1.58){
+      if(!bestArc||pathLength<bestArc.pathLength)bestArc={indexes,pathLength,chord};
+     }
+    }
+    if(!bestArc)continue;
+    const drop=new Set(bestArc.indexes),updated=p.filter((_,i)=>!drop.has(i));
+    if(updated.length<3||Math.sign(area(updated))!==Math.sign(area(raw.loops[destination].points))||!simpleRing(updated))continue;
+    if(loops.some((l,j)=>j!==destination&&ringConflict(updated,l.points)&&!ringConflict(raw.loops[destination].points,raw.loops[j].points)))continue;
+    const trial=loops.map((l,j)=>j===destination?{...l,points:updated}:l),newMask=rasterize(trial,raw.w,raw.h);
+    if(!newMask||!topology(newMask,raw.w,raw.h).every((n,i)=>n===reference[i]))continue;
+    let changed=0,unsafe=false;
+    for(let i=0;i<newMask.length;i++)if(newMask[i]!==currentMask[i]){
+     if(++changed>Math.max(8,Math.ceil(bestArc.chord*.18))||narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+    }
+    if(unsafe)continue;
+    const budget=Math.max(25,Math.min(850,Math.round(raw.loops[destination].points.length*.4)));
+    const delta=rasterDifference(raw.loops[destination].points,updated,raw.mask,raw.w,raw.h,budget,false);
+    if(!Number.isFinite(delta))continue;
+    removed+=p.length-updated.length;count++;
+    loops[destination]={...loops[destination],points:updated};
+    diffs[destination]=delta;currentMask=newMask;
+    if(count>=80)return {count,removed};
+   }
+  }
+ }
+ return {count,removed};
+}
+
+function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)),opt);}
 function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;let loops=result.loops.map(q=>({hole:q.hole,open:!!q.open,points:q.points.map(p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy])}));return {loops,width:opt.width,height:opt.height,sx,sy,ox,oy};}
 function measureSegments(g){let segments=[];g.loops.forEach((loop,loopIndex)=>loop.points.forEach((a,edgeIndex)=>{if(loop.open&&edgeIndex===loop.points.length-1)return;let b=loop.points[(edgeIndex+1)%loop.points.length],dx=b[0]-a[0],dy=b[1]-a[1];segments.push({loopIndex,edgeIndex,hole:loop.hole,x1:a[0],y1:a[1],x2:b[0],y2:b[1],dx,dy,length:Math.hypot(dx,dy)});}));return segments;}
 function dxf(g,options={}){if(openContours(g))throw Error('存在未闭合轮廓，请先连接两个端点再导出 DXF。');let lines=[],handle=256;function add(...a){lines.push(...a.map(String));}function num(n){return Math.abs(n)<1e-10?'0':Number(n.toFixed(9)).toString();}add(0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1015',9,'$INSUNITS',70,4,9,'$MEASUREMENT',70,1,9,'$EXTMIN',10,num(-g.ox),20,num(-g.oy),30,0,9,'$EXTMAX',10,num(g.width-g.ox),20,num(g.height-g.oy),30,0,0,'ENDSEC',0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTable',70,1,0,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTableRecord',100,'AcDbLinetypeTableRecord',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',0,'TABLE',2,'LAYER',5,(handle++).toString(16),100,'AcDbSymbolTable',70,4);
@@ -218,5 +322,5 @@ for(let [name,color] of [['0',7],['METAL_OUTER',4],['METAL_HOLE',1],['CELL_GUIDE
 function polygon(p,layer){if(options.entity==='LINE'){for(let i=0;i<p.length;i++){let q=p[(i+1)%p.length];add(0,'LINE',5,(handle++).toString(16),100,'AcDbEntity',8,layer,100,'AcDbLine',10,num(p[i][0]),20,num(p[i][1]),30,0,11,num(q[0]),21,num(q[1]),31,0);}return;}
 add(0,'LWPOLYLINE',5,(handle++).toString(16),100,'AcDbEntity',8,layer,100,'AcDbPolyline',90,p.length,70,1,38,0);for(let v of p)add(10,num(v[0]),20,num(v[1]));}
 for(let loop of g.loops)polygon(loop.points,loop.hole?'METAL_HOLE':'METAL_OUTER');if(options.guide)polygon([[-g.ox,-g.oy],[g.width-g.ox,-g.oy],[g.width-g.ox,g.height-g.oy],[-g.ox,g.height-g.oy]],'CELL_GUIDE');add(0,'ENDSEC',0,'EOF');return lines.join('\r\n')+'\r\n';}
-const api={cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
+const api={detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
 })(typeof self!=='undefined'?self:globalThis);
