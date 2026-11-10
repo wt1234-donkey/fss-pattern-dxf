@@ -257,6 +257,79 @@ function draw(){const c=$('preview'),ctx=c.getContext('2d');c.width=900;c.height
 if(!result||!geometry){ctx.fillStyle='#617381';ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText(busy?'正在计算图案…':'请检查参数或重新上传图片',450,325);return;}
 if(view==='binary'){let a=document.createElement('canvas');a.width=result.w;a.height=result.h;let t=a.getContext('2d'),d=t.createImageData(result.w,result.h);for(let i=0;i<result.mask.length;i++){let v=result.mask[i]?25:255;d.data[i*4]=v;d.data[i*4+1]=v;d.data[i*4+2]=v;d.data[i*4+3]=255;}t.putImageData(d,0,0);let s=Math.min(780/result.w,530/result.h);ctx.imageSmoothingEnabled=false;ctx.drawImage(a,(900-result.w*s)/2,(650-result.h*s)/2,result.w*s,result.h*s);return;}
 let g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2;function xy(p){return [x+(p[0]+g.ox)*s,y+(g.height-p[1]-g.oy)*s];}function path(loop){loop.points.forEach((p,i)=>{let q=xy(p);i?ctx.lineTo(...q):ctx.moveTo(...q);});if(!loop.open)ctx.closePath();}ctx.strokeStyle='#c6d8e0';ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.strokeRect(x,y,g.width*s,g.height*s);ctx.setLineDash([]);ctx.beginPath();for(let l of g.loops)if(!l.open)path(l);ctx.fillStyle='#daf0eb';ctx.fill('evenodd');for(let l of g.loops){ctx.beginPath();path(l);ctx.strokeStyle=l.open?'#d05c2e':l.hole?'#df8357':'#008b84';ctx.lineWidth=l.open?2.5:1.5;ctx.setLineDash(l.open?[7,4]:[]);ctx.stroke();ctx.setLineDash([]);}ctx.strokeStyle='#809aa6';ctx.fillStyle='#617381';ctx.font='13px system-ui';ctx.textAlign='center';ctx.beginPath();ctx.moveTo(x,y+g.height*s+26);ctx.lineTo(x+g.width*s,y+g.height*s+26);ctx.stroke();ctx.fillText(fmt(g.width)+' mm',450,y+g.height*s+46);ctx.save();ctx.translate(x-30,325);ctx.rotate(-Math.PI/2);ctx.fillText(fmt(g.height)+' mm',0,0);ctx.restore();let origin=xy([0,0]);ctx.fillStyle='#183340';ctx.beginPath();ctx.arc(...origin,3,0,Math.PI*2);ctx.fill();ctx.textAlign='left';ctx.fillText('O',origin[0]+7,origin[1]-7);if($('dimensionMode').value!=='none'){let indexes=$('dimensionMode').value==='all'?segments.map((_,i)=>i):[selectedSegment];for(let i of indexes){let seg=segments[i];if(!seg)continue;let a=xy([seg.x1,seg.y1]),b=xy([seg.x2,seg.y2]),mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];if($('dimensionMode').value==='all'&&Math.hypot(b[0]-a[0],b[1]-a[1])<33)continue;ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.strokeStyle=i===selectedSegment?'#db4925':'#355e72';ctx.lineWidth=i===selectedSegment?3:2;ctx.stroke();let label=mm(seg.length)+' mm';ctx.font='bold 12px system-ui';let tw=ctx.measureText(label).width;let ly=mid[1]-8;ctx.fillStyle=i===selectedSegment?'#fff1e6':'#fff';ctx.fillRect(mid[0]-tw/2-4,ly-13,tw+8,17);ctx.fillStyle=i===selectedSegment?'#a64222':'#23485b';ctx.textAlign='center';ctx.fillText(label,mid[0],ly);}}drawEditorHandles(ctx,xy);}
+
+function resetEditor(full=false){
+ editSelected=null;connectStart=null;editUndo=[];editRedo=[];
+ if(full){editorOn=false;autoLoops=null;}
+ updateEditorControls();
+}
+function updateEditorControls(message){
+ const ready=!!result&&!!geometry&&!busy;
+ const vertex=editSelected&&editSelected.kind==='vertex',edge=editSelected&&editSelected.kind==='edge';
+ $('editToggle').disabled=!ready;
+ $('editToggle').textContent=editorOn?'退出编辑':'开启编辑';
+ $('editMode').disabled=!ready||!editorOn;
+ $('editDeleteVertex').disabled=!ready||!editorOn||!vertex;
+ $('editDeleteEdge').disabled=!ready||!editorOn||!edge||result.loops[editSelected.loopIndex].open;
+ $('editInsertVertex').disabled=!ready||!editorOn||!edge;
+ $('editUndo').disabled=!ready||!editorOn||!editUndo.length;
+ $('editRedo').disabled=!ready||!editorOn||!editRedo.length;
+ $('editReset').disabled=!ready||!autoLoops;
+ const pending=result?result.loops.filter(l=>l.open).length:0;
+ if(!ready){$('editSelection').textContent='生成轮廓后即可开启编辑。';return;}
+ let label=editorOn?'编辑已开启：圆点是顶点，线条是边。':'开启编辑后可选择顶点或线段。';
+ if(vertex){const p=result.loops[editSelected.loopIndex].points[editSelected.index];label='选中顶点 '+(editSelected.loopIndex+1)+'-'+(editSelected.index+1)+'（像素坐标 '+p[0].toFixed(2)+', '+p[1].toFixed(2)+'）';}
+ if(edge)label='选中线段：第 '+(editSelected.loopIndex+1)+' 条轮廓、第 '+(editSelected.index+1)+' 条边。';
+ if(connectStart)label='连接模式：已选择起点，请在同一轮廓中点击第二个顶点。';
+ if(pending)label+=' 存在 '+pending+' 个待闭合缺口，DXF 导出已禁用。';
+ $('editSelection').textContent=message||label;
+}
+function commitEditor(action,message){
+ if(!result)return;
+ try{
+  const updated=FSSCore.editContours(result.loops,action);
+  editUndo.push(FSSCore.cloneLoops(result.loops));
+  if(editUndo.length>60)editUndo.shift();
+  editRedo=[];
+  result={...result,loops:updated};
+  editSelected=null;connectStart=null;
+  updateScale();
+  $('editWarning').textContent='';
+  updateEditorControls(message||'轮廓已修改。');
+ }catch(error){$('editWarning').textContent=error.message;updateEditorControls();}
+}
+function selectedEditAction(type){
+ if(!editSelected||!editorOn)return;
+ const selected=editSelected;
+ if(type==='removeVertex'&&selected.kind==='vertex')
+  commitEditor({type,loopIndex:selected.loopIndex,index:selected.index},'已删除顶点，并用直线连接相邻顶点。');
+ if(type==='removeSegment'&&selected.kind==='edge'){
+  commitEditor({type,loopIndex:selected.loopIndex,index:selected.index},'已删除线段；请切换连接工具并点击缺口的两个端点。');
+  $('editMode').value='connect';
+ }
+ if(type==='insertVertex'&&selected.kind==='edge'){
+  const p=result.loops[selected.loopIndex].points,a=p[selected.index],b=p[(selected.index+1)%p.length];
+  commitEditor({type,loopIndex:selected.loopIndex,index:selected.index,x:(a[0]+b[0])/2,y:(a[1]+b[1])/2},'已在线段中点添加可选顶点。');
+ }
+}
+function editorUndoRedo(redo){
+ const from=redo?editRedo:editUndo,to=redo?editUndo:editRedo;
+ if(!from.length||!result)return;
+ to.push(FSSCore.cloneLoops(result.loops));
+ result={...result,loops:from.pop()};
+ editSelected=null;connectStart=null;
+ updateScale();$('editWarning').textContent='';
+ updateEditorControls(redo?'已重做。':'已撤销。');
+}
+function editorResetAuto(){
+ if(!autoLoops||!result)return;
+ editUndo.push(FSSCore.cloneLoops(result.loops));
+ editRedo=[];result={...result,loops:FSSCore.cloneLoops(autoLoops)};
+ editSelected=null;connectStart=null;
+ updateScale();$('editWarning').textContent='';
+ updateEditorControls('已恢复当前图片的自动识别轮廓。');
+}
+
 function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.3.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value==='fit'?Number($('fitTolerance').value):0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
 $('export').onclick=e=>{if(!geometry||busy||!dxfContent){e.preventDefault();return;}$('exportStatus').textContent='已请求下载：'+$('export').download+'。如未保存，请点击“直接下载 DXF 文件”。';};$('saveAs').onclick=async()=>{if(!geometry||busy||!dxfContent)return;let name=$('directDownload').download;if(typeof window.showSaveFilePicker==='function'){try{let handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'DXF CAD 图案',accept:{'application/dxf':['.dxf']}}]});let stream=await handle.createWritable();await stream.write(new Blob([dxfContent],{type:'application/dxf'}));await stream.close();$('exportStatus').textContent='已保存：'+name;return;}catch(err){$('exportStatus').textContent=err.name==='AbortError'?'已取消保存。':'浏览器未允许另存为：'+err.message+'。请点击“直接下载 DXF 文件”。';return;}}$('exportStatus').textContent='正在请求下载：'+name+'。若未保存，请点击“直接下载 DXF 文件”。';$('directDownload').click();};$('directDownload').onclick=()=>{if(!geometry||busy)return false;$('exportStatus').textContent='已请求直接下载：'+$('directDownload').download+'。如仍被浏览器阻止，请使用 DXF 文本备用入口。';};$('copyDxf').onclick=async()=>{if(!dxfContent)return;try{await navigator.clipboard.writeText(dxfContent);$('exportStatus').textContent='DXF 文本已复制，请保存为 .dxf 文件。';}catch(e){$('dxfText').focus();$('dxfText').select();$('exportStatus').textContent='请复制已选中的 DXF 文本，保存为 .dxf 文件。';}};document.querySelector('.download-help').addEventListener('toggle',e=>{if(e.target.open)$('dxfText').value=dxfContent;});$('segmentCsv').onclick=()=>{if(!segments.length)return;let rows=['ID,loop_type,x1_mm,y1_mm,x2_mm,y2_mm,dx_mm,dy_mm,length_mm',...segments.map(s=>[segmentId(s),s.hole?'hole':'outer',s.x1,s.y1,s.x2,s.y2,s.dx,s.dy,s.length].join(','))];download('\ufeff'+rows.join('\r\n'),imageName+'_segments.csv','text/csv;charset=utf-8');};$('report').onclick=()=>{if(geometry&&!busy)download(JSON.stringify(report(),null,2),imageName+'_parameters.json','application/json');};$('offline').onclick=()=>download('<!doctype html>\n'+document.documentElement.outerHTML,'FSS_Pattern_Lab.html','text/html');
