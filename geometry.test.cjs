@@ -125,5 +125,44 @@ assert.equal(C.dxf(noisyGeometry,{entity:'LINE'}).split('AcDbLine'+String.fromCh
 assert(!C.dxf(noisyGeometry).includes(String.fromCharCode(13,10)+'42'+String.fromCharCode(13,10)));
 // The user-facing pixel-exact mode and one-pixel open slit must remain intact.
 assert.deepEqual(smoothSlit.loops,exactSlit.loops);
+
+// Manual editor: a deleted segment creates a visible temporary open contour,
+// which is measurable but must never be exported as a silently closed DXF.
+let manualSquare=[{hole:false,points:[[0,0],[12,0],[12,12],[0,12]]}];
+let draft=C.editContours(manualSquare,{type:'removeSegment',loopIndex:0,index:1});
+assert(draft[0].open);
+assert.equal(draft[0].points.length,4);
+assert.equal(C.measureSegments({loops:draft}).length,3);
+assert.equal(manualSquare[0].points.length,4); // immutable snapshots
+let draftMm=C.scale({loops:draft,w:12,h:12,bounds:[0,0,12,12]},
+ {width:12,height:12,reference:'image',center:false});
+assert.throws(()=>C.dxf(draftMm));
+assert(C.openContours(draftMm));
+let rejoined=C.editContours(draft,{type:'connect',loopIndex:0,from:0,to:3});
+assert(!rejoined[0].open);
+assert.equal(C.measureSegments({loops:rejoined}).length,4);
+assert(C.dxf(C.scale({loops:rejoined,w:12,h:12,bounds:[0,0,12,12]},
+ {width:12,height:12,reference:'image',center:false})).includes('LWPOLYLINE'));
+// Delete a vertex and automatically connect its two neighbors.
+let removedPoint=C.editContours(manualSquare,{type:'removeVertex',loopIndex:0,index:1});
+assert.equal(removedPoint[0].points.length,3);
+assert.equal(C.area(removedPoint[0].points),72);
+// Connect two nonadjacent points on one closed contour: replace the shorter
+// part of the old boundary (the user's jagged diagonal) with one straight line.
+let staircase=[{hole:false,points:[[0,0],[3,0],[3,1],[6,1],[6,3],[10,3],[10,12],[0,12]]}];
+let shortcut=C.editContours(staircase,{type:'connect',loopIndex:0,from:0,to:5});
+assert(shortcut[0].points.length<staircase[0].points.length);
+assert.equal(shortcut[0].open,undefined);
+assert.equal(Math.sign(C.area(shortcut[0].points)),Math.sign(C.area(staircase[0].points)));
+// Insert a vertex without changing the closed metal outline.
+let inserted=C.editContours(manualSquare,{type:'insertVertex',loopIndex:0,index:0,x:6,y:0});
+assert.equal(inserted[0].points.length,5);
+assert.equal(C.area(inserted[0].points),C.area(manualSquare[0].points));
+// Reject impossible edits, accidental connections, and degenerate output.
+assert.throws(()=>C.editContours(manualSquare,{type:'removeVertex',loopIndex:0,index:99}));
+assert.throws(()=>C.editContours(manualSquare,{type:'connect',loopIndex:0,from:0,to:1}));
+assert.throws(()=>C.editContours(draft,{type:'removeSegment',loopIndex:0,index:0}));
+assert.throws(()=>C.editContours(manualSquare,{type:'insertVertex',loopIndex:0,index:0,x:0,y:0}));
+assert.equal(C.cloneLoops(manualSquare)[0].points[0][0],0);
 const dir=process.argv[2];if(dir){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/fss_demo_20x20mm.dxf',C.dxf(g));fs.writeFileSync(dir+'/fss_demo_lines.dxf',C.dxf(g,{entity:'LINE',guide:true}));fs.writeFileSync(dir+'/fss_demo_parameters.json',JSON.stringify({unit:'mm',cell_mm:[20,20],metal_bounds_mm:[-7,-7,7,7],loops:g.loops},null,2));}
 console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and four holes; color validation; 45-degree fitting; 1px slit; scaling; winding; alpha; polarity; denoising');
