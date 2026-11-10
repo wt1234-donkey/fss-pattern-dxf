@@ -230,7 +230,7 @@ let looseSymmetry=C.vectorize(thresholdImage,140,140,{threshold:127,smooth:false
 let strictSymmetry=C.vectorize(thresholdImage,140,140,{threshold:127,smooth:false,symmetryThreshold:.99});
 assert(looseSymmetry.symmetry.axes.includes('vertical'));
 assert(!strictSymmetry.symmetry.axes.includes('vertical'));
-assert.strictEqual ? assert.strictEqual(looseSymmetry.symmetryStraightened,0) : assert.equal(looseSymmetry.symmetryStraightened,0);
+assert.equal(looseSymmetry.symmetryStraightened,0);
 let repairedHole=C.vectorize(symmetryImage(180,'diamond-hole'),180,180,{threshold:127,symmetryMode:'auto'});
 assert.equal(repairedHole.loops.filter(l=>l.hole).length,1);
 assert.equal(typeof repairedHole.symmetrySnappedSegments,'number');
