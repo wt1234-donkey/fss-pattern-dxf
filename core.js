@@ -29,7 +29,7 @@ function simpleRing(p){let grid=new Map(),cell=8,n=p.length;for(let i=0;i<n;i++)
 function ringConflict(a,b){let ax0=Infinity,ax1=-Infinity,ay0=Infinity,ay1=-Infinity,bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;for(let p of a){ax0=Math.min(ax0,p[0]);ax1=Math.max(ax1,p[0]);ay0=Math.min(ay0,p[1]);ay1=Math.max(ay1,p[1]);}for(let p of b){bx0=Math.min(bx0,p[0]);bx1=Math.max(bx1,p[0]);by0=Math.min(by0,p[1]);by1=Math.max(by1,p[1]);}if(ax1<bx0||bx1<ax0||ay1<by0||by1<ay0)return false;for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)if(segmentsMeet(a[i],a[(i+1)%a.length],b[j],b[(j+1)%b.length]))return true;return false;}
 function rasterize(loops,w,h){let mask=new Uint8Array(w*h);for(let loop of loops){let p=loop.points,min=h,max=0;for(let v of p){min=Math.min(min,v[1]);max=Math.max(max,v[1]);}for(let y=Math.max(0,Math.floor(min));y<Math.min(h,Math.ceil(max));y++){let intervals=spans(p,y+.5);if(!intervals)return null;for(let i=0;i<intervals.length;i+=2)for(let x=Math.max(0,intervals[i]);x<=Math.min(w-1,intervals[i+1]);x++)mask[y*w+x]^=1;}}return mask;}
 function topology(mask,w,h){let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),parts=[0,0];for(let i=0;i<mask.length;i++){if(seen[i])continue;let kind=mask[i],head=0,tail=1,touches=false;q[0]=i;seen[i]=1;while(head<tail){let k=q[head++],x=k%w,y=(k-x)/w;if(x===0||x===w-1||y===0||y===h-1)touches=true;for(let j of [x>0?k-1:-1,x<w-1?k+1:-1,y>0?k-w:-1,y<h-1?k+w:-1])if(j>=0&&!seen[j]&&mask[j]===kind){seen[j]=1;q[tail++]=j;}}if(kind)parts[0]++;else if(!touches)parts[1]++;}return parts;}
-function smoothContours(result,tolerance){if(!(tolerance>0))return {...result,smoothed:0,changedPixels:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
+function smoothContours(result,tolerance){if(!(tolerance>0))return {...result,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
 // If any one sharp corner, rounded tip, hole, or slit rejects a global fit,
 // simplify other long straight spans independently rather than reverting all
 // diagonals in the same closed loop to staircase edges.
@@ -59,7 +59,98 @@ for(let k=0;k<loops.length;k++){
  if(fitted.length<original.length){loops[k].points=fitted;diffs[k]=mismatch;}
 }
 let changed=diffs.reduce((a,b)=>a+b,0);if(changed){let originalTopology=topology(result.mask,result.w,result.h),retries=0;while(retries++<loops.length){let drawn=rasterize(loops,result.w,result.h);if(drawn){let candidateTopology=topology(drawn,result.w,result.h);if(candidateTopology.every((n,i)=>n===originalTopology[i]))break;}let idx=0;for(let i=1;i<diffs.length;i++)if(diffs[i]>diffs[idx])idx=i;if(diffs[idx]===0)break;loops[idx]=result.loops[idx];diffs[idx]=0;}}
-return {...result,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0)};}
+let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
+
+function findDiagonalStaircaseRuns(points,tolerance){
+ const n=points.length;if(n<14)return [];
+ let seam=points.findIndex((p,i)=>Math.hypot(p[0]-points[(i+1)%n][0],p[1]-points[(i+1)%n][1])>4.5);
+ const offset=seam<0?0:(seam+1)%n,a=points.slice(offset).concat(points.slice(0,offset)),runs=[];
+ const strength=Math.min(1.6,Math.max(.65,tolerance/1.25));
+ for(let i=0;i<n-12;){
+  let best=-1,pathLength=0;
+  for(let j=i+1;j<n&&j-i<360;j++){
+   const dx=a[j][0]-a[j-1][0],dy=a[j][1]-a[j-1][1];
+   if(Math.max(Math.abs(dx),Math.abs(dy))>4||dx&&dy)break;
+   pathLength+=Math.abs(dx)+Math.abs(dy);
+   const vx=a[j][0]-a[i][0],vy=a[j][1]-a[i][1],length=Math.hypot(vx,vy);
+   if(Math.abs(vx)<12||Math.abs(vy)<12)continue;
+   if(length/pathLength<.57)break;
+   let deviation=0,sumSq=0,outliers=0;
+   for(let k=i+1;k<j;k++){
+    const d=Math.abs(vx*(a[k][1]-a[i][1])-vy*(a[k][0]-a[i][0]))/length;
+    deviation=Math.max(deviation,d);
+    sumSq+=d*d;
+    if(d>2.7*strength)outliers++;
+   }
+   // Robust long-straight recognition tolerates isolated 1–3 px
+   // threshold bumps, but rejects sustained curvature and deep notches.
+   const nearPerfect=deviation<=Math.max(1.1,tolerance*1.6);
+   const robust=j-i>=32&&sumSq/(j-i-1)<2.3*strength*strength
+       &&outliers/(j-i-1)<.17&&deviation<=5.4*strength;
+   if(nearPerfect||robust)best=j;
+   if(deviation>8*strength)break;
+  }
+  if(best-i>=12){
+   const remove=[];for(let k=i+1;k<best;k++)remove.push((offset+k)%n);
+   runs.push({remove,span:best-i});i=best;
+  }else i++;
+ }
+ return runs.sort((a,b)=>b.remove.length-a.remove.length);
+}
+function narrowLinePixel(mask,w,h,index){
+ const x=index%w,y=(index-x)/w,value=mask[index];
+ function runs(dx,dy){
+  const side=[];
+  for(let direction of [-1,1]){
+   let count=0;
+   for(let step=1;step<7;step++){
+    let xx=x+direction*dx*step,yy=y+direction*dy*step;
+    if(xx<0||yy<0||xx>=w||yy>=h||mask[yy*w+xx]!==value)break;
+    count++;
+   }
+   side.push(count);
+  }
+  return {length:1+side[0]+side[1],both:Math.min(side[0],side[1])};
+ }
+ const hx=runs(1,0),vy=runs(0,1);
+ // A genuine narrow slit/trace continues on both sides of a pixel along
+ // its axis; a one-sided diagonal-border raster spur does not.
+ if(hx.both>=3&&vy.length<=2||vy.both>=3&&hx.length<=2)return true;
+ const d1=runs(1,1),d2=runs(1,-1);
+ return d1.both>=3&&d2.length<=2||d2.both>=3&&d1.length<=2;
+}
+function rectifyDiagonalStaircases(raw,loops,diffs,tolerance){
+ let originalTopology=null,corrected=0,verticesRemoved=0;
+ for(let k=0;k<loops.length;k++){
+  const start=loops[k].points,runs=findDiagonalStaircaseRuns(start,tolerance);
+  if(!runs.length)continue;
+  const source=raw.loops[k].points;
+  const extents=p=>p.reduce((v,q)=>[Math.min(v[0],q[0]),Math.min(v[1],q[1]),Math.max(v[2],q[0]),Math.max(v[3],q[1])],[Infinity,Infinity,-Infinity,-Infinity]);
+  const bbox=extents(start),budget=Math.max(25,Math.min(500,Math.round(start.length*.3)));
+  let removed=new Set(),accepted=start,acceptedDiff=diffs[k],previous=rasterize(loops,raw.w,raw.h);
+  if(!previous)continue;
+  for(let run of runs.slice(0,60)){
+   const nextRemoved=new Set(removed);for(let i of run.remove)nextRemoved.add(i);
+   let p=start.filter((_,i)=>!nextRemoved.has(i));
+   if(p.length<3||Math.sign(area(p))!==Math.sign(area(source))||!simpleRing(p))continue;
+   if(extents(p).some((v,i)=>v!==bbox[i]))continue;
+   if(loops.some((q,j)=>j!==k&&ringConflict(p,q.points)&&!ringConflict(source,raw.loops[j].points)))continue;
+   let diff=rasterDifference(source,p,raw.mask,raw.w,raw.h,budget,false);
+   if(!Number.isFinite(diff))continue;
+   const trial=loops.map((q,j)=>j===k?{...q,points:p}:q),drawn=rasterize(trial,raw.w,raw.h);
+   if(!drawn)continue;
+   if(originalTopology===null)originalTopology=topology(raw.mask,raw.w,raw.h);
+   if(!topology(drawn,raw.w,raw.h).every((v,i)=>v===originalTopology[i]))continue;
+   let unsafe=false;
+   for(let i=0;i<drawn.length;i++)if(drawn[i]!==previous[i]&&narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+   if(unsafe)continue;
+   verticesRemoved+=accepted.length-p.length;corrected++;
+   removed=nextRemoved;accepted=p;acceptedDiff=diff;previous=drawn;
+  }
+  if(accepted!==start){loops[k]={...loops[k],points:accepted};diffs[k]=acceptedDiff;}
+ }
+ return {corrected,verticesRemoved};
+}
 function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)));}
 function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;let loops=result.loops.map(q=>({hole:q.hole,points:q.points.map(p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy])}));return {loops,width:opt.width,height:opt.height,sx,sy,ox,oy};}
 function measureSegments(g){let segments=[];g.loops.forEach((loop,loopIndex)=>loop.points.forEach((a,edgeIndex)=>{let b=loop.points[(edgeIndex+1)%loop.points.length],dx=b[0]-a[0],dy=b[1]-a[1];segments.push({loopIndex,edgeIndex,hole:loop.hole,x1:a[0],y1:a[1],x2:b[0],y2:b[1],dx,dy,length:Math.hypot(dx,dy)});}));return segments;}
