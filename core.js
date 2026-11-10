@@ -151,13 +151,72 @@ function rectifyDiagonalStaircases(raw,loops,diffs,tolerance){
  }
  return {corrected,verticesRemoved};
 }
+
+function cloneLoops(loops){return loops.map(q=>({...q,points:q.points.map(p=>p.slice())}));}
+function validateEditedLoop(loops,index,previous){
+ const next=loops[index],points=next.points;
+ if(points.length<(next.open?2:3))throw Error('轮廓顶点数量不足。');
+ for(let i=1;i<points.length;i++)if(points[i][0]===points[i-1][0]&&points[i][1]===points[i-1][1])throw Error('不能生成零长度线段。');
+ if(next.open)return loops;
+ if(Math.sign(area(points))!==Math.sign(area(previous.points)))throw Error('连接导致轮廓方向反转或面积退化。');
+ if(!simpleRing(points))throw Error('连接将产生自交轮廓，请重新选择端点。');
+ for(let j=0;j<loops.length;j++){
+  if(j===index||loops[j].open)continue;
+  if(ringConflict(points,loops[j].points)&&!ringConflict(previous.points,loops[j].points))
+   throw Error('新线段与其他金属岛或孔洞相交。');
+ }
+ return loops;
+}
+function editContours(source,action){
+ if(!Array.isArray(source)||!source.length)throw Error('没有可编辑的轮廓。');
+ const loops=cloneLoops(source),k=action.loopIndex;
+ if(!Number.isInteger(k)||k<0||k>=loops.length)throw Error('请先选择轮廓。');
+ const loop=loops[k],previous=source[k],n=loop.points.length,idx=action.index;
+ const valid=i=>Number.isInteger(i)&&i>=0&&i<n;
+ if(action.type==='removeVertex'){
+  if(!valid(idx))throw Error('请选择有效的顶点。');
+  if(n<=(loop.open?2:3))throw Error('轮廓无法继续删除顶点。');
+  loop.points.splice(idx,1);
+ }else if(action.type==='removeSegment'){
+  if(loop.open)throw Error('请先连接当前缺口，才能继续删除线段。');
+  if(!valid(idx))throw Error('请选择有效的线段。');
+  loop.points=loop.points.slice((idx+1)%n).concat(loop.points.slice(0,(idx+1)%n));
+  loop.open=true;
+ }else if(action.type==='connect'){
+  const a=action.from,b=action.to;
+  if(!valid(a)||!valid(b)||a===b)throw Error('请选择同一轮廓上的两个不同顶点。');
+  if(loop.open){
+   if(a===0&&b===n-1||b===0&&a===n-1)loop.open=false;
+   else{
+    const start=Math.min(a,b),end=Math.max(a,b);
+    if(end===start+1)throw Error('两点已通过线段连接。');
+    loop.points=loop.points.filter((_,i)=>i<=start||i>=end);
+   }
+  }else{
+   if((a+1)%n===b||(b+1)%n===a)throw Error('这两个顶点已直接连接。');
+   function length(from,to){let sum=0,i=from;while(i!==to){let j=(i+1)%n;sum+=Math.hypot(loop.points[j][0]-loop.points[i][0],loop.points[j][1]-loop.points[i][1]);i=j;}return sum;}
+   const forward=length(a,b)<=length(b,a),start=forward?a:b,end=forward?b:a,drop=new Set();
+   for(let i=(start+1)%n;i!==end;i=(i+1)%n)drop.add(i);
+   loop.points=loop.points.filter((_,i)=>!drop.has(i));
+  }
+ }else if(action.type==='insertVertex'){
+  if(!valid(idx)||loop.open&&idx===n-1)throw Error('请先选中有效线段。');
+  const a=loop.points[idx],b=loop.points[(idx+1)%n],x=Number(action.x),y=Number(action.y);
+  if(!Number.isFinite(x)||!Number.isFinite(y))throw Error('顶点坐标必须是有限数字。');
+  if(Math.hypot(a[0]-x,a[1]-y)<1e-6||Math.hypot(b[0]-x,b[1]-y)<1e-6)throw Error('新顶点不能和现有端点重合。');
+  loop.points.splice(idx+1,0,[x,y]);
+ }else throw Error('不支持的编辑操作。');
+ return validateEditedLoop(loops,k,previous);
+}
+function openContours(g){return g.loops.some(q=>q.open);}
+
 function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)));}
-function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;let loops=result.loops.map(q=>({hole:q.hole,points:q.points.map(p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy])}));return {loops,width:opt.width,height:opt.height,sx,sy,ox,oy};}
-function measureSegments(g){let segments=[];g.loops.forEach((loop,loopIndex)=>loop.points.forEach((a,edgeIndex)=>{let b=loop.points[(edgeIndex+1)%loop.points.length],dx=b[0]-a[0],dy=b[1]-a[1];segments.push({loopIndex,edgeIndex,hole:loop.hole,x1:a[0],y1:a[1],x2:b[0],y2:b[1],dx,dy,length:Math.hypot(dx,dy)});}));return segments;}
-function dxf(g,options={}){let lines=[],handle=256;function add(...a){lines.push(...a.map(String));}function num(n){return Math.abs(n)<1e-10?'0':Number(n.toFixed(9)).toString();}add(0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1015',9,'$INSUNITS',70,4,9,'$MEASUREMENT',70,1,9,'$EXTMIN',10,num(-g.ox),20,num(-g.oy),30,0,9,'$EXTMAX',10,num(g.width-g.ox),20,num(g.height-g.oy),30,0,0,'ENDSEC',0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTable',70,1,0,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTableRecord',100,'AcDbLinetypeTableRecord',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',0,'TABLE',2,'LAYER',5,(handle++).toString(16),100,'AcDbSymbolTable',70,4);
+function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;let loops=result.loops.map(q=>({hole:q.hole,open:!!q.open,points:q.points.map(p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy])}));return {loops,width:opt.width,height:opt.height,sx,sy,ox,oy};}
+function measureSegments(g){let segments=[];g.loops.forEach((loop,loopIndex)=>loop.points.forEach((a,edgeIndex)=>{if(loop.open&&edgeIndex===loop.points.length-1)return;let b=loop.points[(edgeIndex+1)%loop.points.length],dx=b[0]-a[0],dy=b[1]-a[1];segments.push({loopIndex,edgeIndex,hole:loop.hole,x1:a[0],y1:a[1],x2:b[0],y2:b[1],dx,dy,length:Math.hypot(dx,dy)});}));return segments;}
+function dxf(g,options={}){if(openContours(g))throw Error('存在未闭合轮廓，请先连接两个端点再导出 DXF。');let lines=[],handle=256;function add(...a){lines.push(...a.map(String));}function num(n){return Math.abs(n)<1e-10?'0':Number(n.toFixed(9)).toString();}add(0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1015',9,'$INSUNITS',70,4,9,'$MEASUREMENT',70,1,9,'$EXTMIN',10,num(-g.ox),20,num(-g.oy),30,0,9,'$EXTMAX',10,num(g.width-g.ox),20,num(g.height-g.oy),30,0,0,'ENDSEC',0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTable',70,1,0,'LTYPE',5,(handle++).toString(16),100,'AcDbSymbolTableRecord',100,'AcDbLinetypeTableRecord',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,0,0,'ENDTAB',0,'TABLE',2,'LAYER',5,(handle++).toString(16),100,'AcDbSymbolTable',70,4);
 for(let [name,color] of [['0',7],['METAL_OUTER',4],['METAL_HOLE',1],['CELL_GUIDE',8]])add(0,'LAYER',5,(handle++).toString(16),100,'AcDbSymbolTableRecord',100,'AcDbLayerTableRecord',2,name,70,0,62,color,6,'CONTINUOUS');add(0,'ENDTAB',0,'ENDSEC',0,'SECTION',2,'ENTITIES');
 function polygon(p,layer){if(options.entity==='LINE'){for(let i=0;i<p.length;i++){let q=p[(i+1)%p.length];add(0,'LINE',5,(handle++).toString(16),100,'AcDbEntity',8,layer,100,'AcDbLine',10,num(p[i][0]),20,num(p[i][1]),30,0,11,num(q[0]),21,num(q[1]),31,0);}return;}
 add(0,'LWPOLYLINE',5,(handle++).toString(16),100,'AcDbEntity',8,layer,100,'AcDbPolyline',90,p.length,70,1,38,0);for(let v of p)add(10,num(v[0]),20,num(v[1]));}
 for(let loop of g.loops)polygon(loop.points,loop.hole?'METAL_HOLE':'METAL_OUTER');if(options.guide)polygon([[-g.ox,-g.oy],[g.width-g.ox,-g.oy],[g.width-g.ox,g.height-g.oy],[-g.ox,g.height-g.oy]],'CELL_GUIDE');add(0,'ENDSEC',0,'EOF');return lines.join('\r\n')+'\r\n';}
-const api={area,otsu,contours,smoothContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
+const api={cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
 })(typeof self!=='undefined'?self:globalThis);
