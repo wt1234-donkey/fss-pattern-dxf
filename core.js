@@ -29,7 +29,7 @@ function simpleRing(p){let grid=new Map(),cell=8,n=p.length;for(let i=0;i<n;i++)
 function ringConflict(a,b){let ax0=Infinity,ax1=-Infinity,ay0=Infinity,ay1=-Infinity,bx0=Infinity,bx1=-Infinity,by0=Infinity,by1=-Infinity;for(let p of a){ax0=Math.min(ax0,p[0]);ax1=Math.max(ax1,p[0]);ay0=Math.min(ay0,p[1]);ay1=Math.max(ay1,p[1]);}for(let p of b){bx0=Math.min(bx0,p[0]);bx1=Math.max(bx1,p[0]);by0=Math.min(by0,p[1]);by1=Math.max(by1,p[1]);}if(ax1<bx0||bx1<ax0||ay1<by0||by1<ay0)return false;for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)if(segmentsMeet(a[i],a[(i+1)%a.length],b[j],b[(j+1)%b.length]))return true;return false;}
 function rasterize(loops,w,h){let mask=new Uint8Array(w*h);for(let loop of loops){let p=loop.points,min=h,max=0;for(let v of p){min=Math.min(min,v[1]);max=Math.max(max,v[1]);}for(let y=Math.max(0,Math.floor(min));y<Math.min(h,Math.ceil(max));y++){let intervals=spans(p,y+.5);if(!intervals)return null;for(let i=0;i<intervals.length;i+=2)for(let x=Math.max(0,intervals[i]);x<=Math.min(w-1,intervals[i+1]);x++)mask[y*w+x]^=1;}}return mask;}
 function topology(mask,w,h){let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),parts=[0,0];for(let i=0;i<mask.length;i++){if(seen[i])continue;let kind=mask[i],head=0,tail=1,touches=false;q[0]=i;seen[i]=1;while(head<tail){let k=q[head++],x=k%w,y=(k-x)/w;if(x===0||x===w-1||y===0||y===h-1)touches=true;for(let j of [x>0?k-1:-1,x<w-1?k+1:-1,y>0?k-w:-1,y<h-1?k+w:-1])if(j>=0&&!seen[j]&&mask[j]===kind){seen[j]=1;q[tail++]=j;}}if(kind)parts[0]++;else if(!touches)parts[1]++;}return parts;}
-function smoothContours(result,tolerance,settings={}){if(!(tolerance>0))return {...result,symmetry:detectSymmetry(result,settings.symmetryThreshold),symmetryStraightened:0,symmetryVerticesRemoved:0,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
+function smoothContours(result,tolerance,settings={}){if(!(tolerance>0))return {...result,symmetry:detectSymmetry(result,settings.symmetryThreshold),symmetryStraightened:0,symmetryVerticesRemoved:0,symmetrySnappedSegments:0,smoothed:0,changedPixels:0,straightenedRuns:0,staircaseVerticesRemoved:0};let loops=result.loops.map(loop=>({...loop})),diffs=loops.map(()=>0);for(let k=0;k<loops.length;k++){let original=loops[k].points;if(original.length<5)continue;let budget=Math.max(2,Math.min(350,Math.round(original.length*.16),Math.round(Math.abs(area(original))*.04)));for(let t of [tolerance,tolerance*.8,tolerance*.6,tolerance*.4]){let p=fitRing(original,t);if(p.length<3||p.length>=original.length||Math.sign(area(p))!==Math.sign(area(original))||!simpleRing(p))continue;let mismatch=rasterDifference(original,p,result.mask,result.w,result.h,budget,true);if(mismatch===Infinity)continue;if(loops.some((other,j)=>j!==k&&ringConflict(p,other.points)&&!ringConflict(original,result.loops[j].points)))continue;loops[k].points=p;diffs[k]=mismatch;break;}}
 // If any one sharp corner, rounded tip, hole, or slit rejects a global fit,
 // simplify other long straight spans independently rather than reverting all
 // diagonals in the same closed loop to staircase edges.
@@ -59,7 +59,7 @@ for(let k=0;k<loops.length;k++){
  if(fitted.length<original.length){loops[k].points=fitted;diffs[k]=mismatch;}
 }
 let changed=diffs.reduce((a,b)=>a+b,0);if(changed){let originalTopology=topology(result.mask,result.w,result.h),retries=0;while(retries++<loops.length){let drawn=rasterize(loops,result.w,result.h);if(drawn){let candidateTopology=topology(drawn,result.w,result.h);if(candidateTopology.every((n,i)=>n===originalTopology[i]))break;}let idx=0;for(let i=1;i<diffs.length;i++)if(diffs[i]>diffs[idx])idx=i;if(diffs[idx]===0)break;loops[idx]=result.loops[idx];diffs[idx]=0;}}
-let symmetry=detectSymmetry(result,settings.symmetryThreshold);let symmetryFix=settings.symmetryMode==='observe'||settings.symmetryMode==='off'?{count:0,removed:0}:symmetryAssistedStraightening(result,loops,diffs,symmetry);let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,symmetry,symmetryStraightened:symmetryFix.count,symmetryVerticesRemoved:symmetryFix.removed,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
+let symmetry=detectSymmetry(result,settings.symmetryThreshold);let symmetryFix=settings.symmetryMode==='observe'||settings.symmetryMode==='off'?{count:0,removed:0}:symmetryAssistedStraightening(result,loops,diffs,symmetry);let repair=rectifyDiagonalStaircases(result,loops,diffs,tolerance);return {...result,symmetry,symmetryStraightened:symmetryFix.count,symmetryVerticesRemoved:symmetryFix.removed,symmetrySnappedSegments:symmetryFix.snapped||0,loops,smoothed:diffs.filter((_,i)=>loops[i].points!==result.loops[i].points).length,changedPixels:diffs.reduce((a,b)=>a+b,0),straightenedRuns:repair.corrected,staircaseVerticesRemoved:repair.verticesRemoved};}
 
 function findDiagonalStaircaseRuns(points,tolerance){
  const n=points.length;if(n<14)return [];
@@ -232,13 +232,13 @@ function mirrorSymmetryPoint(p,axis,b){
          axis==='vertical'?p[1]:b[1]+b[3]-p[1]];
 }
 function symmetryAssistedStraightening(raw,loops,diffs,info){
- let count=0,removed=0;
- if(!info.axes.length||!loops.length)return {count,removed};
+ let count=0,removed=0,snapped=0;
+ if(!info.axes.length||!loops.length)return {count,removed,snapped};
  const originalLoops=cloneLoops(loops),bbox=raw.bounds,reference=topology(raw.mask,raw.w,raw.h);
  const bounds=p=>p.reduce((box,q)=>[Math.min(box[0],q[0]),Math.min(box[1],q[1]),Math.max(box[2],q[0]),Math.max(box[3],q[1])],[Infinity,Infinity,-Infinity,-Infinity]);
  const boxes=originalLoops.map(l=>bounds(l.points));
  let currentMask=rasterize(loops,raw.w,raw.h);
- if(!currentMask)return {count,removed};
+ if(!currentMask)return {count,removed,snapped};
  // Prefer using mirrored straight edges before ordinary staircase regression.
  for(const axis of info.axes){
   const partners=boxes.map((box,k)=>{
@@ -291,27 +291,45 @@ function symmetryAssistedStraightening(raw,loops,diffs,info){
      }
     }
     if(!bestArc)continue;
-    const drop=new Set(bestArc.indexes),updated=p.filter((_,i)=>!drop.has(i));
-    if(updated.length<3||Math.sign(area(updated))!==Math.sign(area(raw.loops[destination].points))||!simpleRing(updated))continue;
-    if(loops.some((l,j)=>j!==destination&&ringConflict(updated,l.points)&&!ringConflict(raw.loops[destination].points,raw.loops[j].points)))continue;
-    const trial=loops.map((l,j)=>j===destination?{...l,points:updated}:l),newMask=rasterize(trial,raw.w,raw.h);
-    if(!newMask||!topology(newMask,raw.w,raw.h).every((n,i)=>n===reference[i]))continue;
-    let changed=0,unsafe=false;
-    for(let i=0;i<newMask.length;i++)if(newMask[i]!==currentMask[i]){
-     if(++changed>Math.max(8,Math.ceil(bestArc.chord*.18))||narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+    const drop=new Set(bestArc.indexes),shortcut=p.filter((_,i)=>!drop.has(i));
+    // Prefer exact reflected endpoints when they are already close, but
+    // preserve the original ring bounding box and fall back to the safe
+    // unsnapped straight chord if exact mirroring would damage geometry.
+    const mirrored=p.filter((_,i)=>!drop.has(i)).map((pt,i,arr)=>pt);
+    const exact=p.filter((_,i)=>!drop.has(i)).map((pt,j)=>{
+     // Track original vertex identity through the deleted staircase span.
+     const originalIndex=p.indexOf(pt);
+     return originalIndex===ia?mirroredA.slice():originalIndex===ib?mirroredB.slice():pt;
+    });
+    const inputBox=bounds(p);
+    const allowExact=Math.hypot(p[ia][0]-mirroredA[0],p[ia][1]-mirroredA[1])<=1.75
+     &&Math.hypot(p[ib][0]-mirroredB[0],p[ib][1]-mirroredB[1])<=1.75
+     &&bounds(exact).every((v,i)=>Math.abs(v-inputBox[i])<1e-8);
+    let accepted=false;
+    for(const choice of (allowExact?[{points:exact,exact:true},{points:shortcut,exact:false}]:[{points:shortcut,exact:false}])){
+     const updated=choice.points;
+     if(updated.length<3||Math.sign(area(updated))!==Math.sign(area(raw.loops[destination].points))||!simpleRing(updated))continue;
+     if(loops.some((l,j)=>j!==destination&&ringConflict(updated,l.points)&&!ringConflict(raw.loops[destination].points,raw.loops[j].points)))continue;
+     const trial=loops.map((l,j)=>j===destination?{...l,points:updated}:l),newMask=rasterize(trial,raw.w,raw.h);
+     if(!newMask||!topology(newMask,raw.w,raw.h).every((n,i)=>n===reference[i]))continue;
+     let changed=0,unsafe=false;
+     for(let i=0;i<newMask.length;i++)if(newMask[i]!==currentMask[i]){
+      if(++changed>Math.max(8,Math.ceil(bestArc.chord*.18))||narrowLinePixel(raw.mask,raw.w,raw.h,i)){unsafe=true;break;}
+     }
+     if(unsafe)continue;
+     const budget=Math.max(25,Math.min(850,Math.round(raw.loops[destination].points.length*.4)));
+     const delta=rasterDifference(raw.loops[destination].points,updated,raw.mask,raw.w,raw.h,budget,false);
+     if(!Number.isFinite(delta))continue;
+     removed+=p.length-updated.length;count++;if(choice.exact)snapped++;
+     loops[destination]={...loops[destination],points:updated};
+     diffs[destination]=delta;currentMask=newMask;accepted=true;break;
     }
-    if(unsafe)continue;
-    const budget=Math.max(25,Math.min(850,Math.round(raw.loops[destination].points.length*.4)));
-    const delta=rasterDifference(raw.loops[destination].points,updated,raw.mask,raw.w,raw.h,budget,false);
-    if(!Number.isFinite(delta))continue;
-    removed+=p.length-updated.length;count++;
-    loops[destination]={...loops[destination],points:updated};
-    diffs[destination]=delta;currentMask=newMask;
-    if(count>=80)return {count,removed};
+    if(!accepted)continue;
+    if(count>=80)return {count,removed,snapped};
    }
   }
  }
- return {count,removed};
+ return {count,removed,snapped};
 }
 
 function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};return smoothContours(raw,opt.smooth===false?0:Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25)),opt);}
