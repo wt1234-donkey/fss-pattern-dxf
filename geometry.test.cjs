@@ -68,5 +68,31 @@ assert.equal(colored.bounds[0],4);assert.equal(colored.bounds[2],76);
 assert.throws(()=>C.vectorize(colors,cw,ch,{materialMode:'color',color:[300,255,0]}));
 let blue=C.vectorize(colors,cw,ch,{materialMode:'color',color:[0,177,242],colorTolerance:40,smooth:false});
 assert.equal(blue.pixels,cw*ch-yellow);
+// Angled metal with a rectangular aperture remains topologically stable,
+// and the 8 mm DXF contains straight line entities without arc bulges.
+let rw=256,rh=256,slanted=new Uint8ClampedArray(rw*rh*4);
+for(let y=0;y<rh;y++)for(let x=0;x<rw;x++){
+ let metal=x>=18&&x<238&&y>=18&&y<238&&x+y>105&&x+y<365&&!(x>=105&&x<148&&y>=105&&y<148);
+ let v=metal?15:255,i=4*(y*rw+x);slanted.set([v,v,v,255],i);
+}
+let jagged=C.vectorize(slanted,rw,rh,{threshold:127,smooth:false});
+let fittedSlanted=C.vectorize(slanted,rw,rh,{threshold:127,tolerance:1.25});
+assert.equal(fittedSlanted.loops.filter(q=>q.hole).length,1);
+assert.equal(fittedSlanted.changedPixels,0);
+assert(fittedSlanted.loops.reduce((n,q)=>n+q.points.length,0)<jagged.loops.reduce((n,q)=>n+q.points.length,0)/4);
+for(let loop of fittedSlanted.loops){
+ assert(loop.points.length>=3);
+ assert.equal(C.area(loop.points)>0,loop.hole);
+}
+let physical=C.scale(fittedSlanted,{width:8,height:8,reference:'image',center:true});
+let measuredSlanted=C.measureSegments(physical);
+assert.equal(measuredSlanted.length,fittedSlanted.loops.reduce((n,q)=>n+q.points.length,0));
+assert(measuredSlanted.every(s=>Number.isFinite(s.length)&&s.length>0));
+let polyDxf=C.dxf(physical,{entity:'LWPOLYLINE'});
+assert.equal(polyDxf.split('LWPOLYLINE').length-1,physical.loops.length);
+assert(!polyDxf.includes(String.fromCharCode(13,10)+'42'+String.fromCharCode(13,10)));
+let lineDxf=C.dxf(physical,{entity:'LINE'});
+assert.equal(lineDxf.split('AcDbLine'+String.fromCharCode(13,10)).length-1,measuredSlanted.length);
+assert.deepEqual(smoothSlit.loops,exactSlit.loops);
 const dir=process.argv[2];if(dir){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/fss_demo_20x20mm.dxf',C.dxf(g));fs.writeFileSync(dir+'/fss_demo_lines.dxf',C.dxf(g,{entity:'LINE',guide:true}));fs.writeFileSync(dir+'/fss_demo_parameters.json',JSON.stringify({unit:'mm',cell_mm:[20,20],metal_bounds_mm:[-7,-7,7,7],loops:g.loops},null,2));}
 console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and four holes; color validation; 45-degree fitting; 1px slit; scaling; winding; alpha; polarity; denoising');
