@@ -234,7 +234,7 @@ const api={cloneLoops,editContours,openContours,area,otsu,contours,smoothContour
 const $=id=>document.getElementById(id), controls=['cropX','cropY','cropW','cropH','polarity','threshold','materialMode','metalColor','colorTolerance','minPixels','resolution','vectorMode','fitTolerance','reference','width','height','lock','origin','entity','guide'];
 let source=document.createElement('canvas'),working=document.createElement('canvas'),result=null,geometry=null,segments=[],selectedSegment=0,downloadUrl=null,dxfContent='',view='vector',imageName='fss_demo',busy=false,request=0,timer,worker=null,pickingMetal=false;
 let editorOn=false,editSelected=null,connectStart=null,editUndo=[],editRedo=[],autoLoops=null;
-let editZoom=1,editPanX=0,editPanY=0,editDrag=null;
+let editZoom=1,editPanX=0,editPanY=0,editDrag=null,editIgnoreClick=false;
 try {const js=$('core-code').textContent+'\nself.onmessage=e=>{try{let d=e.data;self.postMessage({id:d.id,result:FSSCore.vectorize(d.rgba,d.w,d.h,d.opt)});}catch(err){self.postMessage({id:e.data.id,error:err.message});}}';let u=URL.createObjectURL(new Blob([js],{type:'text/javascript'}));worker=new Worker(u);URL.revokeObjectURL(u);worker.onmessage=e=>complete(e.data);worker.onerror=()=>{worker.terminate();worker=null;setStatus('当前浏览器不支持后台处理，已切换到本地处理模式。','warn');schedule();};}catch(e){worker=null;}
 function showMaterialSettings(){$('graySettings').classList.toggle('hidden',$('materialMode').value==='color');$('colorSettings').classList.toggle('hidden',$('materialMode').value!=='color');$('colorToleranceValue').textContent=$('colorTolerance').value;}
 function colorRgb(){let hex=$('metalColor').value;return [1,3,5].map(k=>parseInt(hex.slice(k,k+2),16));}
@@ -341,6 +341,7 @@ function editorXY(event){
  return {px,py,point:p=>[x+(p[0]+g.ox)*scale,y+(g.height-p[1]-g.oy)*scale]};
 }
 function editorClick(event){
+ if(editIgnoreClick){editIgnoreClick=false;return;}
  if(!geometry||!result)return;
  const coords=editorXY(event),{px,py,point}=coords;
  let hit=null,nearest=(12/editZoom)**2;
@@ -423,5 +424,65 @@ function useSample(ix,iy){let d=source.getContext('2d',{willReadFrequently:true}
 function sampleOriginalColor(e){if(!pickingMetal||view!=='original')return;let canvas=$('preview'),rect=canvas.getBoundingClientRect(),xx=(e.clientX-rect.left)*canvas.width/rect.width,yy=(e.clientY-rect.top)*canvas.height/rect.height,s=Math.min(800/source.width,540/source.height),x=(900-source.width*s)/2,y=(650-source.height*s)/2,ix=Math.floor((xx-x)/s),iy=Math.floor((yy-y)/s);if(ix<0||iy<0||ix>=source.width||iy>=source.height){setStatus('请点击图案内的金属区域取色。','warn');return;}useSample(ix,iy);}
 async function loadFile(file){if(!file)return;if(file.size>40*1024*1024){setStatus('图片超过 40 MB，请先缩小或裁切。','error');return;}let id=++request;disable(true);result=null;geometry=null;setStatus('正在读取图片…');let url=URL.createObjectURL(file);try{let img=new Image();img.src=url;await img.decode();if(id!==request)return;if(img.width*img.height>40000000)throw Error('原图超过 4000 万像素，请先缩小。');source.width=img.width;source.height=img.height;source.getContext('2d').drawImage(img,0,0);imageName=file.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N}_-]/gu,'_').slice(0,80)||'fss_pattern';renderThumbnail();$('filename').textContent=file.name+' · '+img.width+' × '+img.height+' px';resetCrop();autoSelectMetal();schedule();}catch(e){if(id===request){disable(false);setStatus('无法读取该图片：'+e.message,'error');draw();}}finally{URL.revokeObjectURL(url);}}
 $('file').onchange=e=>loadFile(e.target.files[0]);for(let ev of ['dragenter','dragover'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('drag');});for(let ev of ['dragleave','drop'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('drag');});$('drop').addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));$('demo').onclick=demo;$('fullCrop').onclick=()=>{resetCrop();schedule();};$('auto').onclick=()=>{try{let d=prep();$('threshold').value=FSSCore.otsu(d.data);schedule();}catch(e){setStatus(e.message,'error');}};
-for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='vectorMode')$('fitSetting').classList.toggle('hidden',$('vectorMode').value==='exact');if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击黄色金属区域。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};$('dimensionMode').onchange=draw;demo();
+for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='vectorMode')$('fitSetting').classList.toggle('hidden',$('vectorMode').value==='exact');if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击黄色金属区域。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
+$('editToggle').onclick=()=>{
+ if(!result||!geometry||busy)return;
+ editorOn=!editorOn;editSelected=null;connectStart=null;
+ $('editWarning').textContent='';
+ if(editorOn)chooseView('vector');
+ updateEditorControls();draw();
+};
+$('editMode').onchange=()=>{
+ connectStart=null;editSelected=null;$('editWarning').textContent='';
+ updateEditorControls();draw();
+};
+$('editDeleteVertex').onclick=()=>selectedEditAction('removeVertex');
+$('editDeleteEdge').onclick=()=>selectedEditAction('removeSegment');
+$('editInsertVertex').onclick=()=>selectedEditAction('insertVertex');
+$('editUndo').onclick=()=>editorUndoRedo(false);
+$('editRedo').onclick=()=>editorUndoRedo(true);
+$('editReset').onclick=editorResetAuto;
+$('editZoomIn').onclick=()=>adjustEditorZoom(editZoom*1.6);
+$('editZoomOut').onclick=()=>adjustEditorZoom(editZoom/1.6);
+$('editZoomReset').onclick=()=>{editZoom=1;editPanX=0;editPanY=0;draw();};
+$('preview').addEventListener('wheel',event=>{
+ if(!editorOn||view!=='vector')return;
+ event.preventDefault();
+ adjustEditorZoom(editZoom*(event.deltaY<0?1.28:1/1.28),event.clientX,event.clientY);
+},{passive:false});
+$('preview').addEventListener('pointerdown',event=>{
+ if(!editorOn||view!=='vector'||!(event.altKey||event.button===1))return;
+ event.preventDefault();
+ editDrag={x:event.clientX,y:event.clientY,dragged:false};
+ if($('preview').setPointerCapture)$('preview').setPointerCapture(event.pointerId);
+});
+$('preview').addEventListener('pointermove',event=>{
+ if(!editDrag)return;
+ let dx=event.clientX-editDrag.x,dy=event.clientY-editDrag.y,rect=$('preview').getBoundingClientRect();
+ editPanX+=dx*900/rect.width;editPanY+=dy*650/rect.height;
+ editDrag.x=event.clientX;editDrag.y=event.clientY;
+ if(dx||dy)editDrag.dragged=true;
+ draw();
+});
+function stopEditorPan(){
+ if(editDrag&&editDrag.dragged)editIgnoreClick=true;
+ editDrag=null;
+}
+$('preview').addEventListener('pointerup',stopEditorPan);
+$('preview').addEventListener('pointercancel',stopEditorPan);
+$('preview').addEventListener('contextmenu',e=>{if(editorOn)e.preventDefault();});
+document.addEventListener('keydown',event=>{
+ if(!editorOn||!geometry)return;
+ if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement&&document.activeElement.tagName))return;
+ if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){
+  event.preventDefault();editorUndoRedo(event.shiftKey);return;
+ }
+ if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='y'){
+  event.preventDefault();editorUndoRedo(true);return;
+ }
+ if((event.key==='Delete'||event.key==='Backspace')&&editSelected){
+  event.preventDefault();selectedEditAction(editSelected.kind==='vertex'?'removeVertex':'removeSegment');
+ }
+});
+$('dimensionMode').onchange=draw;demo();
 </script></body></html>
