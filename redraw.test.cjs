@@ -28,7 +28,7 @@ assert.equal(shortened.loops[0].bulges[4],0,'replaced span line stays straight')
 assert(R.evaluate(shortened,ref,{skipMask:true}).ok);
 const curved=R.replaceSpan(base,0,4,7,'arc');
 assert.equal(curved.loops[0].points.length,6);
-assert(curved.loops[0].bulges[4]>0,'arc midpoint above the chord must use positive bulge');
+assert(curved.loops[0].bulges[4]<0,'above-chord sagitta on a leftward edge must use a negative bulge');
 assert(R.toLoops(curved)[0].curves.some(s=>s.kind==='arc'));
 const inserted=R.insertVertex(curved,0,4);
 assert.equal(inserted.loops[0].points.length,7);
