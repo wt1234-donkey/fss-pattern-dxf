@@ -16,4 +16,5 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install numpy
       - run: node geometry.test.cjs
+      - run: node advanced.test.cjs
       - run: node codegen.test.cjs
