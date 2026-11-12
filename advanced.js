@@ -31,7 +31,7 @@ function classify(loops){
   l.hole=(depth%2)===1;
   if((C.area(l.points)>0)!==l.hole){
    l.points.reverse();
-   if(l.curves){l.curves.reverse();l.curves=l.curves.map(s=>({ ...s, start:s.end, end:s.start, ...(s.sweep!=null?{sweep:-s.sweep}:{})}));}
+   if(l.curves){l.curves.reverse();l.curves=l.curves.map(s=>({ ...s, start:s.end.slice(), end:s.start.slice(), ...(s.sweep!=null?{sweep:-s.sweep}:{})}));l.points=sampleArcCurves(l.curves);}
   }
  }
  return items;
@@ -271,6 +271,17 @@ function ransacHybrid(rgba,raw,opt){
  });
  return {loops,details:{nativeArcs:arcs,ransacFittedLoops:fitted}};
 }
+
+function sampleArcCurves(curves){
+ const points=[];
+ for(const seg of curves){
+  const n=Math.max(8,Math.ceil(Math.abs(seg.sweep)*Math.max(8,Math.hypot(seg.start[0]-seg.center[0],seg.start[1]-seg.center[1]))/2));
+  const r=Math.hypot(seg.start[0]-seg.center[0],seg.start[1]-seg.center[1]),a=Math.atan2(seg.start[1]-seg.center[1],seg.start[0]-seg.center[0]);
+  for(let j=0;j<n;j++){const t=a+seg.sweep*j/n;points.push([seg.center[0]+r*Math.cos(t),seg.center[1]+r*Math.sin(t)]);}
+ }
+ return points;
+}
+
 function circlePrimitive(points){
  if(points.length<12)return null;
  const bounds=points.reduce((v,p)=>[Math.min(v[0],p[0]),Math.min(v[1],p[1]),Math.max(v[2],p[0]),Math.max(v[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);
@@ -285,7 +296,7 @@ function circlePrimitive(points){
   const a=begin+sign*Math.PI/2*i,b=begin+sign*Math.PI/2*(i+1);
   curves.push({kind:'arc',start:P(cx+r*Math.cos(a),cy+r*Math.sin(a)),end:P(cx+r*Math.cos(b),cy+r*Math.sin(b)),center:P(cx,cy),sweep:sign*Math.PI/2});
  }
- return {points:curves.map(s=>s.start),curves};
+ return {points:sampleArcCurves(curves),curves};
 }
 function parametricRaster(raw,rgba,opt){
  const base=ransacHybrid(rgba,raw,opt);
@@ -460,7 +471,7 @@ function importSVG(text,sourceW,sourceH,crop,outputW,outputH,opt={}){
        const u=begin+dir*j*Math.PI/2,v=begin+dir*(j+1)*Math.PI/2;
        curves.push({kind:'arc',start:[c[0]+r*Math.cos(u),c[1]+r*Math.sin(u)],end:[c[0]+r*Math.cos(v),c[1]+r*Math.sin(v)],center:c.slice(),sweep:dir*Math.PI/2});
       }
-      shapes=[{points:curves.map(s=>s.start),curves,transformed:true}];exactCircles++;
+      shapes=[{points:sampleArcCurves(curves),curves,transformed:true}];exactCircles++;
      }else{shapes=[{points}];curveSamples++;}
     }
    }else if(type==='polygon'||type==='polyline'){
