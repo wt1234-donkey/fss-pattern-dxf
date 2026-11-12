@@ -237,3 +237,30 @@ assert.equal(typeof repairedHole.symmetrySnappedSegments,'number');
 assert.equal(C.openContours(C.scale(repairedHole,{width:8,height:8,reference:'image',center:true})),false);
 const dir=process.argv[2];if(dir){fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(dir+'/fss_demo_20x20mm.dxf',C.dxf(g));fs.writeFileSync(dir+'/fss_demo_lines.dxf',C.dxf(g,{entity:'LINE',guide:true}));fs.writeFileSync(dir+'/fss_demo_parameters.json',JSON.stringify({unit:'mm',cell_mm:[20,20],metal_bounds_mm:[-7,-7,7,7],loops:g.loops},null,2));}
 console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and four holes; color validation; 45-degree fitting; 1px slit; scaling; winding; alpha; polarity; denoising');
+
+
+// Hybrid mode: a binary disc with a central hole keeps topology and exports native arcs
+{
+ const n=150,pix=new Uint8ClampedArray(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const d=Math.hypot(x-75.25,y-75.25),metal=d<=38&&d>=13,v=metal?0:255,k=4*(y*n+x);
+  pix.set([v,v,v,255],k);
+ }
+ const legacy=C.vectorize(pix,n,n,{threshold:127,tolerance:1.25});
+ const hybrid=C.vectorize(pix,n,n,{threshold:127,tolerance:1.25,vectorMode:'hybrid'});
+ assert.equal(hybrid.loops.length,legacy.loops.length);
+ assert.equal(hybrid.loops.filter(l=>l.hole).length,legacy.loops.filter(l=>l.hole).length);
+ assert(hybrid.hybrid&&hybrid.hybrid.arcs>0,'混合模式必须至少将圆环识别为一段原生圆弧');
+ const shape=C.scale(hybrid,{width:30,height:30,reference:'image',center:true});
+ const cad=C.dxf(shape);
+ assert(cad.includes('LWPOLYLINE'));
+ assert(cad.includes('\r\n42\r\n'));
+ const lines=C.dxf(shape,{entity:'LINE'});
+ assert(!lines.includes('\r\n42\r\n'));
+ const distortion=C.scale(hybrid,{width:40,height:30,reference:'image',center:true});
+ assert(!C.dxf(distortion).includes('\r\n42\r\n'));
+ const edited=C.editContours(hybrid.loops,{type:'insertVertex',loopIndex:0,index:0,
+  x:(hybrid.loops[0].points[0][0]+hybrid.loops[0].points[1][0])/2,
+  y:(hybrid.loops[0].points[0][1]+hybrid.loops[0].points[1][1])/2});
+ assert(!edited[0].curves);
+}
