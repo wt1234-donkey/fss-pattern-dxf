@@ -972,7 +972,20 @@ function importSVG(text,sourceW,sourceH,crop,outputW,outputH,opt={}){
    const A=k=>num(el.getAttribute(k),0),type=el.localName;let shapes=[];
    if(type==='rect'){
     const x=A('x'),y=A('y'),w=A('width'),h=A('height');
-    if(w>0&&h>0)shapes=[{points:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]}];
+    if(w>0&&h>0){
+     let rx=Math.max(0,A('rx')),ry=Math.max(0,A('ry'));
+     if(rx&&!ry)ry=rx;else if(ry&&!rx)rx=ry;
+     rx=Math.min(rx,w/2);ry=Math.min(ry,h/2);
+     if(rx>0&&ry>0){
+      // SVG rounded rectangles must not silently become sharp rectangles.
+      const points=[],corners=[[x+w-rx,y+ry,-Math.PI/2,0],[x+w-rx,y+h-ry,0,Math.PI/2],[x+rx,y+h-ry,Math.PI/2,Math.PI],[x+rx,y+ry,Math.PI,Math.PI*1.5]];
+      for(const [cx,cy,start,end] of corners){
+       const steps=Math.max(8,Math.min(64,Math.ceil(Math.max(rx,ry)*Math.PI/2/.35)));
+       for(let k=0;k<=steps;k++){const ang=start+(end-start)*k/steps;points.push([cx+rx*Math.cos(ang),cy+ry*Math.sin(ang)]);}
+      }
+      shapes=[{points}];curveSamples++;
+     }else shapes=[{points:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]}];
+    }
    }else if(type==='circle'||type==='ellipse'){
     let cx=A('cx'),cy=A('cy'),rx=type==='circle'?A('r'):A('rx'),ry=type==='circle'?A('r'):A('ry');
     if(rx>0&&ry>0){
