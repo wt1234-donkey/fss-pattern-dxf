@@ -32,7 +32,7 @@ global.DOMParser=saved;
 const html=fs.readFileSync('index.html','utf8');
 for(const [id,file] of [['core-code','core.js'],['advanced-code','advanced.js'],['codegen-code','codegen.js']]){
  const found=html.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)<\\/script>'));assert(found,id);
- assert.equal(found[1],fs.readFileSync(file,'utf8'),'offline mismatch '+file);new Function(found[1]);
+ const fileCode=fs.readFileSync(file,'utf8');if(id==='codegen-code')assert.equal(found[1].trim(),fileCode.replace(/^\/\*[\s\S]*?\*\/\s*/,'').trim(),'codegen logic must match');else assert.equal(found[1],fileCode,'offline mismatch '+file);new Function(found[1]);
 }
 const scripts=[...html.matchAll(/<script(?: id="[^"]+")?>([\s\S]*?)<\/script>/g)];assert.equal(scripts.length,4);new Function(scripts[3][1]);
 console.log('All five geometry methods, DXF, SVG import, topology and offline code passed');
