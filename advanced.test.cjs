@@ -20,11 +20,11 @@ assert(A.svgPath('M10 20 Q30 0 50 20 C70 40 80 40 90 20 L90 80 L10 80 Z')[0].poi
 assert(A.svgPath('M5 10 A20 20 0 0 1 45 10 L45 45 L5 45 Z')[0].points.length>10);
 assert.equal(A.svgPath('M0 0 L10 0 L10 10').length,0,'never silently close open SVG');
 function el(localName,attrs={},children=[]){return {localName,children,getAttribute(k){return attrs[k]??null;}};}
-const root=el('svg',{viewBox:'0 0 100 100'},[el('rect',{x:'3',y:'5',width:'24',height:'40'}),el('circle',{cx:'65',cy:'50',r:'15'}),el('path',{d:'M30 80 L50 80 L50 90 L30 90 Z'})]);
+const root=el('svg',{viewBox:'0 0 100 100'},[el('rect',{x:'3',y:'5',width:'24',height:'40'}),el('circle',{cx:'65',cy:'50',r:'15'}),el('path',{d:'M30 80 L50 80 L50 90 L30 90 Z'}),el('rect',{x:'70',y:'80',width:'20',height:'15',rx:'4',ry:'4'})]);
 const saved=global.DOMParser;
 global.DOMParser=class{parseFromString(){return {documentElement:root,querySelector(){return null;}};}};
 const svg=A.importSVG('<svg/>',100,100,{x:0,y:0,w:100,h:100},100,100,{materialMode:'gray'});
-assert.equal(svg.info.parsedShapes,3);assert.equal(svg.info.exactCircles,1);
+assert.equal(svg.info.parsedShapes,4);assert.equal(svg.info.exactCircles,1);assert(svg.loops.some(l=>l.points.length>50&&!l.curves),'rounded rectangle should keep curved corners');
 const arcs=svg.loops.filter(l=>l.curves?.some(s=>s.kind==='arc'));assert.equal(arcs.length,1);
 assert(C.dxf(C.scale({loops:arcs,bounds:[0,0,100,100],w:100,h:100},{width:20,height:20,reference:'image',center:true})).includes('\r\n42\r\n'));
 assert.throws(()=>A.importSVG('<svg/>',100,100,{x:0,y:0,w:100,h:100},100,100,{materialMode:'color',color:[255,255,0],colorTolerance:30}),/No compatible filled SVG/);
