@@ -1,0 +1,65 @@
+'use strict';
+const assert=require('assert'),fs=require('fs');
+const Core=require('./core.js'),Advanced=require('./advanced.js'),R=require('./redraw.js');
+function bitmap(n,fn){
+ const out=new Uint8ClampedArray(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){const v=fn(x+.5,y+.5)?0:255,k=4*(y*n+x);out.set([v,v,v,255],k);}
+ return out;
+}
+const n=120,ring=bitmap(n,(x,y)=>{const d=Math.hypot(x-60,y-60);return d>=18&&d<43;});
+const reference=Advanced.generate(ring,n,n,{threshold:127,vectorMode:'ransac',tolerance:1.25});
+const initial=R.fromResult(reference),metrics=R.evaluate(initial,reference);
+assert(metrics.ok,metrics.reason);
+assert.equal(metrics.outers,1);assert.equal(metrics.holes,1);
+assert.equal(R.toLoops(initial).length,2);
+assert(Core.dxf(Core.scale({...reference,loops:R.toLoops(initial)},{width:20,height:20,reference:'image',center:true})).includes('\r\n42\r\n'), 'native circular arc retained');
+const proposed=R.auto(initial,reference,{tolerance:1.25});
+assert(R.evaluate(proposed.model,reference).ok,'safe automatic regularization');
+const m=R.arc([0,0],[10,0],Math.tan(Math.PI/8));
+assert(Math.abs(m.center[0]-5)<1e-8&&Math.abs(m.center[1]-5)<1e-8);
+const samples=R.sampleArc(m);
+assert(samples.some(p=>p[1]<-2),'positive CAD bulge in raster coordinates bends above the horizontal chord');
+const base={loops:[{hole:false,points:[[10,10],[10,70],[70,70],[70,10],[55,10],[54,9],[53,10],[40,10]],bulges:Array(8).fill(0)}]};
+const ref={loops:R.toLoops(base),w:100,h:100,pixels:1000,mask:null};
+assert(R.evaluate(base,ref,{skipMask:true}).ok);
+const shortened=R.replaceSpan(base,0,4,7,'line');
+assert.equal(shortened.loops[0].points.length,6);
+assert.equal(shortened.loops[0].bulges[4],0,'replaced span line stays straight');
+assert(R.evaluate(shortened,ref,{skipMask:true}).ok);
+const curved=R.replaceSpan(base,0,4,7,'arc');
+assert.equal(curved.loops[0].points.length,6);
+assert(curved.loops[0].bulges[4]>0,'arc midpoint above the chord must use positive bulge');
+assert(R.toLoops(curved)[0].curves.some(s=>s.kind==='arc'));
+const inserted=R.insertVertex(curved,0,4);
+assert.equal(inserted.loops[0].points.length,7);
+assert(Math.abs(inserted.loops[0].bulges[4]-inserted.loops[0].bulges[5])<1e-9);
+assert(R.evaluate(inserted,ref,{skipMask:true}).ok);
+const moved=R.moveVertex(base,0,3,[70,11]);
+assert.equal(moved.loops[0].points[3][1],11);
+assert.equal(base.loops[0].points[3][1],10,'model mutations never alter source');
+const deleted=R.removeVertex(base,0,5);
+assert.equal(deleted.loops[0].points.length,7);
+const b=R.setBulge(base,0,4,.25);
+assert.equal(b.loops[0].bulges[4],.25);
+assert(Core.dxf(Core.scale({...reference,loops:R.toLoops(b)},{width:20,height:20,reference:'image',center:true})).includes('\r\n42\r\n'),'edited arc is a native bulge in DXF');
+const mirror=R.symmetry({loops:[{hole:false,points:[[10,10],[10,40],[40,40],[40,10]],bulges:[0,0,0,0]}]},'vertical',2);
+assert(mirror.pairs>0);
+const invalid=R.clone(base);
+invalid.loops[0].points[1]=[80,3];
+assert(!R.evaluate(invalid,ref,{skipMask:true}).ok,'self-intersecting loop must be rejected');
+const noHole=R.clone(initial);noHole.loops.pop();
+assert(!R.evaluate(noHole,reference).ok,'missing hole must be rejected');
+const html=fs.readFileSync('index.html','utf8');
+for(const [id,file] of [['core-code','core.js'],['advanced-code','advanced.js'],['redraw-code','redraw.js'],['redraw-ui-code','redraw-ui.js'],['codegen-code','codegen.js']]){
+ const hit=html.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)<\\/script>'));
+ assert(hit,'missing inline '+id);
+ const src=fs.readFileSync(file,'utf8');
+ assert.equal(hit[1].trim(),src.trim(),'offline mismatch '+file);
+ new Function(hit[1]);
+}
+const scripts=[...html.matchAll(/<script(?: id="[^"]+")?>([\s\S]*?)<\/script>/g)];
+assert.equal(scripts.length,6);
+new Function(scripts[scripts.length-1][1]);
+for(const id of ['redrawCanvas','redrawStart','redrawAuto','redrawTool','redrawArcBulge','redrawApply','redrawUndo','redrawRedo','redrawSymmetry','redrawExport','redrawAllowDeviation'])assert(html.includes('id="'+id+'"'),'missing redraw UI '+id);
+assert(html.includes('redrawCtrl=FSSRedrawUI.init('));
+console.log('Reference-guided redraw, native arc DXF, topology checks, offline parity passed');
