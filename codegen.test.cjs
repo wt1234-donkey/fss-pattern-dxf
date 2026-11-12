@@ -35,7 +35,8 @@ for(const script of [py,cad,pyrect]){
 const run=spawnSync(python,['-c',py + '\nmat = make_pattern_matrix()\nassert mat.shape == (32,32)\nassert mat[0,0] == 0\nassert mat[5,5] == 1\nassert mat[10,10] == 0\nassert mat[13,13] == 1\nassert mat[15,15] == 0\n'],{encoding:'utf8'});
 if(run.error)throw run.error;
 assert.equal(run.status,0,run.stderr);
-const rectRun=spawnSync(python,['-c',pyrect + '\ntry:\n    make_pattern_matrix()\nexcept ValueError as e:\n    assert "square" in str(e)\nelse:\n    raise AssertionError("rectangular cell should be rejected")\n'],{encoding:'utf8'});
+const rectValidation='namespace = {"__name__": "imported_test_module"}\nexec(' + JSON.stringify(pyrect) + ', namespace)\ntry:\n    namespace["make_pattern_matrix"]()\nexcept ValueError as e:\n    assert "square" in str(e)\nelse:\n    raise AssertionError("rectangular cell should be rejected")\n';
+const rectRun=spawnSync(python,['-c',rectValidation],{encoding:'utf8'});
 assert.equal(rectRun.status,0,rectRun.stderr);
 const scaled=C.scale({w:10,h:10,bounds:[0,0,10,10],loops:[{hole:false,points:[[2,2],[8,2],[8,8],[2,8]]}]},{width:8,height:8,reference:'image',center:true});
 assert(generatedPython(scaled,{kind:'dxf'}).includes('"left_mm": -4'));
