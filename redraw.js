@@ -166,7 +166,7 @@ function replaceSpan(model,loop,from,to,kind){
  let bulge=0;
  if(kind==='arc'){
   const mid=l.points[interior[Math.floor(interior.length/2)]],sag=cross(a,b,mid)/d;
-  bulge=clamp(2*sag/d,-.85,.85);
+  bulge=clamp(-2*sag/d,-.85,.85);
   if(Math.abs(bulge)<.04)bulge=0.2*(Math.sign(sag)||1);
  }
  const drop=new Set(interior),points=[],bulges=[];

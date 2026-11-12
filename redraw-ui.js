@@ -213,7 +213,7 @@ function init(api){
   else if(drag.kind==='bulge'){
    const l=drag.original.loops[h.loop],a=l.points[h.index],b=l.points[(h.index+1)%l.points.length],d=Math.hypot(b[0]-a[0],b[1]-a[1]);
    const sag=d?((b[0]-a[0])*(pt[1]-a[1])-(b[1]-a[1])*(pt[0]-a[0]))/d:0;
-   model=R.setBulge(drag.original,h.loop,h.index,Math.max(-1,Math.min(1,2*sag/d)));
+   model=R.setBulge(drag.original,h.loop,h.index,Math.max(-1,Math.min(1,-2*sag/d)));
   }
   refresh();
  }
