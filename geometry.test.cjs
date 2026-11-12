@@ -250,7 +250,6 @@ console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and f
  const hybrid=C.vectorize(pix,n,n,{threshold:127,tolerance:1.25,vectorMode:'hybrid'});
  assert.equal(hybrid.loops.length,legacy.loops.length);
  assert.equal(hybrid.loops.filter(l=>l.hole).length,legacy.loops.filter(l=>l.hole).length);
- console.log('hybrid-debug',JSON.stringify(hybrid.hybrid),'vertices',JSON.stringify(legacy.loops.map(l=>l.points.length)));
  assert(hybrid.hybrid&&hybrid.hybrid.arcs>0,'混合模式必须至少将圆环识别为一段原生圆弧');
  const shape=C.scale(hybrid,{width:30,height:30,reference:'image',center:true});
  const cad=C.dxf(shape);

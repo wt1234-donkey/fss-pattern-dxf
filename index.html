@@ -364,11 +364,11 @@ function circle3(a,m,b){
 function circularSpan(p,from,to,tol){
  const n=to-from+1;if(n<5)return null;
  const a=p[from],b=p[to],middle=p[from+Math.floor((n-1)/2)];
- const circle=circle3(a,middle,b);
+ const circle=leastSquaresCircle(p.slice(from,to+1))||circle3(a,middle,b);
  if(!circle||circle.radius<1.4||circle.radius>220)return null;
  const [cx,cy]=circle.center,alpha=q=>Math.atan2(q[1]-cy,q[0]-cx);
- const limit=Math.max(.55,Math.min(.88,tol*.48));
- let sweep=0,sign=0,maxError=0;
+ const limit=Math.max(.75,Math.min(1.15,tol*.72));
+ let sweep=0,sign=0,maxError=0,backtracking=0;
  for(let j=from;j<=to;j++){
   const q=p[j],error=Math.abs(Math.hypot(q[0]-cx,q[1]-cy)-circle.radius);
   maxError=Math.max(maxError,error);
@@ -376,8 +376,8 @@ function circularSpan(p,from,to,tol){
   if(j===from)continue;
   const u=p[j-1],ang=Math.atan2((u[0]-cx)*(q[1]-cy)-(u[1]-cy)*(q[0]-cx),
                                   (u[0]-cx)*(q[0]-cx)+(u[1]-cy)*(q[1]-cy));
-  if(Math.abs(ang)>1.12)return null; // reject isolated right-angle corners
-  if(Math.abs(ang)>.015){if(sign&&Math.sign(ang)!==sign)return null;sign=Math.sign(ang);}
+  if(Math.abs(ang)>1.35)return null; // reject large discontinuities
+  if(Math.abs(ang)>.015){if(sign&&Math.sign(ang)!==sign){backtracking+=Math.abs(ang);if(backtracking>.23)return null;}else sign=Math.sign(ang);}
   sweep+=ang;
  }
  if(Math.abs(sweep)<.33||Math.abs(sweep)>2.85)return null;
@@ -386,6 +386,36 @@ function circularSpan(p,from,to,tol){
  if(chord<2.7||sag<.7||circle.radius*Math.abs(sweep)<4.5)return null;
  return {kind:'arc',start:a.slice(),end:b.slice(),center:circle.center,sweep};
 }
+
+function leastSquaresCircle(points){
+ const n=points.length;if(n<5)return null;
+ let mx=0,my=0;for(const p of points){mx+=p[0];my+=p[1];}mx/=n;my/=n;
+ let uu=0,vv,uv=0,vsum=0,uuu=0,uvv=0,vvv=0,vuu=0;
+ for(const p of points){
+  const u=p[0]-mx,v=p[1]-my,u2=u*u,v2=v*v;
+  uu+=u2;vsum+=v2;uv+=u*v;uuu+=u2*u;uvv+=u*v2;vvv+=v2*v;vuu+=v*u2;
+ }
+ const det=uu*vsum-uv*uv;
+ if(Math.abs(det)<1e-8)return null;
+ const A=(uuu+uvv)/2,B=(vvv+vuu)/2;
+ const center=[mx+(A*vsum-B*uv)/det,my+(B*uu-A*uv)/det];
+ let radius=0;for(const p of points)radius+=Math.hypot(p[0]-center[0],p[1]-center[1]);radius/=n;
+ let maxError=0,rms=0;
+ for(const p of points){const e=Math.abs(Math.hypot(p[0]-center[0],p[1]-center[1])-radius);maxError=Math.max(maxError,e);rms+=e*e;}
+ return {center,radius,maxError,rms:Math.sqrt(rms/n)};
+}
+function fullCircleCurves(points){
+ if(points.length<12)return null;
+ const c=leastSquaresCircle(points);
+ if(!c||c.radius<3||c.maxError>Math.min(2,Math.max(1.15,.035*c.radius))||c.rms>.83)return null;
+ const sign=Math.sign(area(points));if(!sign)return null;
+ // Four exact quarter arcs rather than an invalid single-vertex full-circle polyline.
+ const begin=Math.atan2(points[0][1]-c.center[1],points[0][0]-c.center[0]),segments=[];
+ const at=i=>[c.center[0]+c.radius*Math.cos(begin+sign*i*Math.PI/2),c.center[1]+c.radius*Math.sin(begin+sign*i*Math.PI/2)];
+ for(let i=0;i<4;i++)segments.push({kind:'arc',start:at(i),end:at(i+1),center:c.center.slice(),sweep:sign*Math.PI/2});
+ return segments;
+}
+
 function sampleCurves(curves){
  const pts=[];
  for(const seg of curves){
@@ -416,7 +446,7 @@ function hybridContours(raw,tolerance,settings){
  for(let k=0;k<loops.length;k++){
   const original=loops[k].points;
   if(original.length<5||original.length>7000||loops[k].open){lines+=original.length;continue;}
-  let primitives=reconstructCurves(original,tolerance);
+  let primitives=fullCircleCurves(original)||reconstructCurves(original,tolerance);
   let attempts=primitives.filter(s=>s.kind==='arc').length;
   if(!attempts){lines+=original.length;continue;}
   const budget=Math.max(12,Math.min(250,Math.round(original.length*.8),Math.round(Math.abs(area(original))*.015)));
