@@ -5,10 +5,10 @@
 #codeText{display:block;box-sizing:border-box;width:100%;min-height:210px;max-height:360px;resize:vertical;padding:10px;font-size:11px;line-height:1.45;font-family:ui-monospace,Consolas,monospace;white-space:pre;tab-size:4}
 .code-actions{margin:8px 0;display:flex;gap:8px}.code-actions button{min-width:0;flex:1}
 </style></head><body><header><div><strong>▦ Pattern Lab</strong> <span>／ 二维电磁图案工作台</span></div><div class="tag">浏览器内处理 · 无需安装</div></header><main><h1>从拓扑图片，到可用的 CAD 轮廓。</h1><p class="lead">上传二维 FSS 图案 → 确定尺寸基准 → 导出毫米单位的 DXF。保留孔洞、细缝与独立金属岛。</p><div class="layout"><aside class="card">
-<div class="section"><h2><span class="step">01</span>输入图案</h2><input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/bmp"><label for="file" class="upload" id="drop"><div style="font-size:26px;color:var(--teal)">↥</div><strong>点击选择图片，或拖入此处</strong><span class="small">PNG / JPG / WebP / BMP</span></label><p id="filename" class="small" style="margin-top:10px;overflow-wrap:anywhere">当前为示例：带孔方环</p><div class="source-photo"><canvas id="sourceThumb" width="280" height="160" aria-label="上传图片预览，点击金属区域取色"></canvas><p class="small">原始图片预览 · 点击金属区域可直接取色</p><button id="showOriginal" class="btn wide" type="button">查看完整原图并取色</button></div><button id="demo" class="btn wide" style="margin-top:10px">载入带孔方环示例</button><details class="crop"><summary class="small">裁切图片（去掉坐标轴和标注）</summary><div class="row"><label class="field"><span>左侧 x / px</span><input id="cropX" type="number" min="0" value="0" step="1"></label><label class="field"><span>顶部 y / px</span><input id="cropY" type="number" min="0" value="0" step="1"></label></div><div class="row"><label class="field"><span>裁切宽 / px</span><input id="cropW" type="number" min="1" value="400" step="1"></label><label class="field"><span>裁切高 / px</span><input id="cropH" type="number" min="1" value="400" step="1"></label></div><button id="fullCrop" class="btn wide">恢复整张图片</button><p class="small" style="margin-top:7px">原点位于图片左上角。输入原图像素坐标；预览中浅色区域为裁切外部。</p></details></div>
-<div class="section"><h2><span class="step">02</span>识别金属区域</h2><label class="field"><span>识别方式</span><select id="materialMode"><option value="gray">黑白 / 灰度阈值</option><option value="color">按金属颜色识别</option></select></label><div id="graySettings"><label class="field"><span>图案极性</span><select id="polarity"><option value="dark">黑色 / 深色区域是金属</option><option value="light">白色 / 浅色区域是金属</option></select></label><label class="field"><span>二值化阈值 <b id="thresholdValue">127</b></span><input id="threshold" type="range" min="0" max="255" value="127"></label><button id="auto" class="btn wide">自动计算阈值</button></div><div id="colorSettings" class="hidden"><label class="field"><span>金属取样颜色</span><input id="metalColor" type="color" value="#ffff00" style="height:40px;width:100%;border:1px solid #cdd9df;border-radius:6px;cursor:pointer"></label><button id="pickMetal" class="btn wide">在原始图片上点击金属取色</button><label class="field"><span>颜色容差 <b id="colorToleranceValue">80</b> / 255</span><input id="colorTolerance" type="range" min="0" max="255" value="80"></label><p class="small">靠近所选颜色的像素作为金属；蓝色基板会保留为非金属。调节容差时对照二值预览。</p></div><label class="field"><span>轮廓生成</span><select id="vectorMode"><option value="hybrid" selected>智能混合几何重建（直线 + 圆弧）</option><option value="fit">自适应斜直线去锯齿（旧模式）</option><option value="exact">精确像素边界</option></select></label><label class="field" id="fitSetting"><span>直线拟合强度</span><select id="fitTolerance"><option value="0.8">轻度</option><option value="1.25" selected>标准</option><option value="1.5">较强</option><option value="2">很强</option></select></label><p class="small">混合模式先识别斜直线，再对可靠的圆角生成真实 CAD 圆弧；所有候选通过拓扑与细缝检查，否则局部回退。</p><label class="field"><span>对称辅助直线修复</span><select id="symmetryMode"><option value="auto" selected>自动检测并优先对称修正（推荐）</option><option value="observe">仅检测，不修改轮廓</option><option value="off">关闭对称修正</option></select></label><label class="field"><span>近似对称吻合度阈值 <b id="symmetryThresholdValue">94%</b></span><input type="range" id="symmetryThreshold" min="85" max="99" step="1" value="94"></label><p class="small" id="symmetryInfo" aria-live="polite">导入图案后分别检测左右、上下和中心对称。只有匹配可靠且通过几何保护检查时才使用镜像直线。</p><div class="row"><label class="field"><span>去除小区域 / px²</span><input id="minPixels" type="number" min="1" max="1000000" step="1" value="1"></label><label class="field"><span>最大处理边长</span><select id="resolution"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option></select></label></div><p class="small">默认不删除小金属岛，孔洞始终保留。分辨率降低可能改变细线；尺寸信息将显示每像素代表的实际长度。</p></div>
+<div class="section"><h2><span class="step">01</span>输入图案</h2><input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/svg+xml,.svg"><label for="file" class="upload" id="drop"><div style="font-size:26px;color:var(--teal)">↥</div><strong>点击选择图片，或拖入此处</strong><span class="small">PNG / JPG / WebP / BMP / SVG</span></label><p id="filename" class="small" style="margin-top:10px;overflow-wrap:anywhere">当前为示例：带孔方环</p><div class="source-photo"><canvas id="sourceThumb" width="280" height="160" aria-label="上传图片预览，点击金属区域取色"></canvas><p class="small">原始图片预览 · 点击金属区域可直接取色</p><button id="showOriginal" class="btn wide" type="button">查看完整原图并取色</button></div><button id="demo" class="btn wide" style="margin-top:10px">载入带孔方环示例</button><details class="crop"><summary class="small">裁切图片（去掉坐标轴和标注）</summary><div class="row"><label class="field"><span>左侧 x / px</span><input id="cropX" type="number" min="0" value="0" step="1"></label><label class="field"><span>顶部 y / px</span><input id="cropY" type="number" min="0" value="0" step="1"></label></div><div class="row"><label class="field"><span>裁切宽 / px</span><input id="cropW" type="number" min="1" value="400" step="1"></label><label class="field"><span>裁切高 / px</span><input id="cropH" type="number" min="1" value="400" step="1"></label></div><button id="fullCrop" class="btn wide">恢复整张图片</button><p class="small" style="margin-top:7px">原点位于图片左上角。输入原图像素坐标；预览中浅色区域为裁切外部。</p></details></div>
+<div class="section"><h2><span class="step">02</span>识别金属区域</h2><label class="field"><span>识别方式</span><select id="materialMode"><option value="gray">黑白 / 灰度阈值</option><option value="color">按金属颜色识别</option></select></label><div id="graySettings"><label class="field"><span>图案极性</span><select id="polarity"><option value="dark">黑色 / 深色区域是金属</option><option value="light">白色 / 浅色区域是金属</option></select></label><label class="field"><span>二值化阈值 <b id="thresholdValue">127</b></span><input id="threshold" type="range" min="0" max="255" value="127"></label><button id="auto" class="btn wide">自动计算阈值</button></div><div id="colorSettings" class="hidden"><label class="field"><span>金属取样颜色</span><input id="metalColor" type="color" value="#ffff00" style="height:40px;width:100%;border:1px solid #cdd9df;border-radius:6px;cursor:pointer"></label><button id="pickMetal" class="btn wide">在原始图片上点击金属取色</button><label class="field"><span>颜色容差 <b id="colorToleranceValue">80</b> / 255</span><input id="colorTolerance" type="range" min="0" max="255" value="80"></label><p class="small">靠近所选颜色的像素作为金属；蓝色基板会保留为非金属。调节容差时对照二值预览。</p></div><label class="field"><span>轮廓生成</span><select id="vectorMode"><option value="ransac" selected>RANSAC + 直线、圆弧拟合（推荐）</option><option value="potrace">Potrace 风格 Bézier 矢量化</option><option value="marching">Marching Squares 亚像素轮廓</option><option value="sdf">Level Set / SDF 距离场轮廓</option><option value="cadsvg">参数化 CAD / SVG 几何</option><option value="hybrid">智能混合几何重建（兼容）</option><option value="fit">自适应斜直线去锯齿（兼容）</option><option value="exact">精确像素边界</option></select></label><label class="field" id="fitSetting"><span>拟合 / 简化容差</span><select id="fitTolerance"><option value="0.8">轻度</option><option value="1.25" selected>标准</option><option value="1.5">较强</option><option value="2">很强</option></select></label><p class="small">五种方法各自处理轮廓；不符合拓扑和细缝保护要求时自动回退。Potrace 风格是本站独立实现的 Bézier 重建算法，不是官方 Potrace 软件。</p><label class="field"><span>对称辅助直线修复</span><select id="symmetryMode"><option value="auto" selected>自动检测并优先对称修正（推荐）</option><option value="observe">仅检测，不修改轮廓</option><option value="off">关闭对称修正</option></select></label><label class="field"><span>近似对称吻合度阈值 <b id="symmetryThresholdValue">94%</b></span><input type="range" id="symmetryThreshold" min="85" max="99" step="1" value="94"></label><div class="note" id="modeInfo" aria-live="polite">RANSAC：检测连续直线并融合真实圆弧，尽量保留 FSS 尖角与狭缝。</div><label class="field hidden" id="sdfSetting"><span>Level Set / SDF 平滑强度 <b id="sdfValue">25%</b></span><input id="sdfSmoothing" type="range" min="0" max="70" step="5" value="25"></label><p id="advancedSummary" class="small" style="margin-top:8px" aria-live="polite">导入图片后显示当前算法的实际生成状态。</p><p class="small" id="symmetryInfo" aria-live="polite">导入图案后分别检测左右、上下和中心对称。只有匹配可靠且通过几何保护检查时才使用镜像直线。</p><div class="row"><label class="field"><span>去除小区域 / px²</span><input id="minPixels" type="number" min="1" max="1000000" step="1" value="1"></label><label class="field"><span>最大处理边长</span><select id="resolution"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option></select></label></div><p class="small">默认不删除小金属岛，孔洞始终保留。分辨率降低可能改变细线；尺寸信息将显示每像素代表的实际长度。</p></div>
 <div class="section"><h2><span class="step">03</span>设置实际尺寸</h2><label class="field"><span>尺寸对应的范围</span><select id="reference"><option value="image">裁切后的整张图片 / 单元周期</option><option value="pattern">已识别金属图案的外接框</option></select></label><div class="row"><label class="field"><span>总宽度 / mm</span><input id="width" type="number" value="20" min="0.000001" max="1000000" step="any"></label><label class="field"><span>总高度 / mm</span><input id="height" type="number" value="20" min="0.000001" max="1000000" step="any"></label></div><label class="check"><input id="lock" type="checkbox" checked>保持图片比例（改宽度自动算高度）</label><label class="field"><span>坐标原点</span><select id="origin"><option value="center">所选尺寸范围的中心</option><option value="corner">所选尺寸范围的左下角</option></select></label><div class="note" id="scaleInfo">示例：400 × 400 px → 20 × 20 mm</div></div>
-<div class="section"><h2><span class="step">04</span>导出 DXF</h2><label class="field"><span>DXF 实体类型</span><select id="entity"><option value="LWPOLYLINE">闭合多段线（推荐）</option><option value="LINE">首尾相接线段（兼容选项）</option></select></label><label class="check"><input id="guide" type="checkbox">附加尺寸范围边框（CELL_GUIDE 层）</label><a id="export" class="btn primary wide export-link" role="button" aria-disabled="true">↓ 导出 DXF 图案</a><button id="saveAs" type="button" class="btn wide" style="margin-top:8px" disabled>通过系统对话框另存为</button><a id="directDownload" class="btn wide export-link" style="margin-top:8px" aria-disabled="true">直接下载 DXF 文件</a><div id="exportStatus" class="small" role="status" aria-live="polite" style="margin-top:6px">轮廓生成后可下载。</div><details class="download-help"><summary class="small">下载受浏览器限制？查看或复制 DXF 文本</summary><textarea id="dxfText" readonly aria-label="DXF 文件文本"></textarea><button id="copyDxf" type="button" class="btn wide">复制 DXF 文本</button><p class="small">复制后粘贴到纯文本编辑器，以 .dxf 扩展名保存。</p></details><button id="report" class="btn wide" style="margin-top:8px">下载转换参数 JSON</button><button id="offline" class="btn wide" style="margin-top:8px">下载可离线打开的工具</button><p class="small" style="margin-top:10px">DXF 2000 · XY 平面 · Z = 0 · mm · 混合模式使用真实圆弧 bulge<br>外轮廓与孔洞分别放在不同图层。</p></div>
+<div class="section"><h2><span class="step">04</span>导出 DXF</h2><label class="field"><span>DXF 实体类型</span><select id="entity"><option value="LWPOLYLINE">闭合多段线（推荐）</option><option value="LINE">首尾相接线段（兼容选项）</option></select></label><label class="check"><input id="guide" type="checkbox">附加尺寸范围边框（CELL_GUIDE 层）</label><a id="export" class="btn primary wide export-link" role="button" aria-disabled="true">↓ 导出 DXF 图案</a><button id="saveAs" type="button" class="btn wide" style="margin-top:8px" disabled>通过系统对话框另存为</button><a id="directDownload" class="btn wide export-link" style="margin-top:8px" aria-disabled="true">直接下载 DXF 文件</a><div id="exportStatus" class="small" role="status" aria-live="polite" style="margin-top:6px">轮廓生成后可下载。</div><details class="download-help"><summary class="small">下载受浏览器限制？查看或复制 DXF 文本</summary><textarea id="dxfText" readonly aria-label="DXF 文件文本"></textarea><button id="copyDxf" type="button" class="btn wide">复制 DXF 文本</button><p class="small">复制后粘贴到纯文本编辑器，以 .dxf 扩展名保存。</p></details><button id="report" class="btn wide" style="margin-top:8px">下载转换参数 JSON</button><button id="offline" class="btn wide" style="margin-top:8px">下载可离线打开的工具</button><p class="small" style="margin-top:10px">DXF 2000 · XY 平面 · Z = 0 · mm · 原生圆弧使用 bulge；Bezier / SDF 曲线按容差采样 bulge<br>外轮廓与孔洞分别放在不同图层。</p></div>
 <div class="section" id="codeExportPanel"><h2><span class="step">05</span>生成导入图案的 Python 代码</h2>
 <p class="small">从<strong>当前 DXF 预览和手动修改后的闭合轮廓</strong>生成代码，保留独立金属岛与内部孔洞。可复制或下载 .py 文件。</p>
 <label class="field"><span>代码类型</span><select id="codeKind"><option value="pypssfss">PyPSSFSS：生成金属矩阵 + 正向仿真模板</option><option value="dxf">ezdxf：精确重建轮廓并输出 DXF（CST）</option></select></label>
@@ -513,6 +513,509 @@ function polygon(loop,layer){
 for(let loop of g.loops)polygon(loop,loop.hole?'METAL_HOLE':'METAL_OUTER');if(options.guide)polygon({points:[[-g.ox,-g.oy],[g.width-g.ox,-g.oy],[g.width-g.ox,g.height-g.oy],[-g.ox,g.height-g.oy]]},'CELL_GUIDE');add(0,'ENDSEC',0,'EOF');return lines.join('\r\n')+'\r\n';}
 const api={detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,hybridContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
 })(typeof self!=='undefined'?self:globalThis);
+</script><script id="advanced-code">/* Five geometry engines for FSS Pattern Lab. Self-contained, no network dependencies.
+   Potrace-style is an independent corner/Bézier tracer, not the Potrace library. */
+(function(root){
+'use strict';
+const C=root.FSSCore||(typeof require==='function'?require('./core.js'):null);
+if(!C)throw Error('FSSCore must load before FSSAdvanced');
+const EPS=1e-8;
+const P=(x,y)=>[x,y];
+const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+const finite=n=>typeof n==='number'&&Number.isFinite(n);
+const close=(a,b)=>dist(a,b)<1e-6;
+const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+const num=(v,f=0)=>{let n=Number(v);return Number.isFinite(n)?n:f;};
+function tidy(p){
+ let out=[];
+ for(const q of p)if(finite(q[0])&&finite(q[1])&&(!out.length||!close(out[out.length-1],q)))out.push([q[0],q[1]]);
+ if(out.length>1&&close(out[0],out[out.length-1]))out.pop();
+ return out;
+}
+function inside(pt,poly){
+ let b=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+  let a=poly[i],c=poly[j],t=((a[1]>pt[1])!==(c[1]>pt[1]));
+  if(t&&pt[0]<(c[0]-a[0])*(pt[1]-a[1])/(c[1]-a[1])+a[0])b=!b;
+ }return b;
+}
+function classify(loops){
+ const items=loops.filter(l=>l.points&&l.points.length>=3).map(l=>({...l,points:tidy(l.points)})).filter(l=>l.points.length>=3&&Math.abs(C.area(l.points))>1e-5);
+ for(const l of items){
+  const q=l.points[0];let depth=0;
+  for(const other of items)if(other!==l&&inside(q,other.points))depth++;
+  l.hole=(depth%2)===1;
+  if((C.area(l.points)>0)!==l.hole){
+   l.points.reverse();
+   if(l.curves){l.curves.reverse();l.curves=l.curves.map(s=>({ ...s, start:s.end.slice(), end:s.start.slice(), ...(s.sweep!=null?{sweep:-s.sweep}:{})}));l.points=sampleArcCurves(l.curves);}
+  }
+ }
+ return items;
+}
+function maskTopology(mask,w,h){
+ const seen=new Uint8Array(mask.length),queue=new Int32Array(mask.length);let comps=0,holes=0;
+ for(let k=0;k<mask.length;k++){
+  if(seen[k])continue;
+  const kind=mask[k],head0=0;let head=head0,tail=1,touch=false;queue[0]=k;seen[k]=1;
+  while(head<tail){
+   const p=queue[head++],x=p%w,y=(p-x)/w;
+   if(x===0||x===w-1||y===0||y===h-1)touch=true;
+   for(const j of [x? p-1:-1,x<w-1?p+1:-1,y?p-w:-1,y<h-1?p+w:-1]){
+    if(j>=0&&!seen[j]&&mask[j]===kind){seen[j]=1;queue[tail++]=j;}
+   }
+  }
+  if(kind)comps++;else if(!touch)holes++;
+ }
+ return [comps,holes];
+}
+function rasterize(loops,w,h){
+ const xs=Array.from({length:h},()=>[]);
+ for(const l of loops){
+  const p=l.points,n=p.length;if(n<3)return null;
+  for(let i=0;i<n;i++){
+   const a=p[i],b=p[(i+1)%n];
+   if(Math.abs(a[1]-b[1])<EPS)continue;
+   let first=Math.max(0,Math.ceil(Math.min(a[1],b[1])-.5)),end=Math.min(h,Math.ceil(Math.max(a[1],b[1])-.5));
+   for(let y=first;y<end;y++){
+    const fy=y+.5;
+    xs[y].push(a[0]+(fy-a[1])*(b[0]-a[0])/(b[1]-a[1]));
+   }
+  }
+ }
+ const mask=new Uint8Array(w*h);
+ for(let y=0;y<h;y++){
+  const row=xs[y].sort((a,b)=>a-b);
+  if(row.length%2)return null;
+  for(let i=0;i<row.length;i+=2){
+   const a=Math.max(0,Math.ceil(row[i]-.5)),b=Math.min(w,Math.ceil(row[i+1]-.5));
+   for(let x=a;x<b;x++)mask[y*w+x]^=1;
+  }
+ }
+ return mask;
+}
+function finePixel(mask,w,h,i){
+ const x=i%w,y=(i-x)/w,v=mask[i];
+ const spans=[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>{
+  let z=0;for(let k=1;k<=3;k++){let xx=x+dx*k,yy=y+dy*k;if(xx<0||yy<0||xx>=w||yy>=h||mask[yy*w+xx]!==v)break;z++;}return z;
+ });
+ return 1+spans[0]+spans[1]<=2||1+spans[2]+spans[3]<=2;
+}
+function validCandidate(raw,loops,options={}){
+ if(!loops.length||loops.length>1200||loops.some(l=>l.points.length<3||l.points.length>15000))return {ok:false,why:'invalid loop sizes'};
+ const after=rasterize(loops,raw.w,raw.h);if(!after)return {ok:false,why:'invalid scanlines'};
+ const initial=maskTopology(raw.mask,raw.w,raw.h),final=maskTopology(after,raw.w,raw.h);
+ if(initial[0]!==final[0]||initial[1]!==final[1])return {ok:false,why:'connectivity or holes changed'};
+ let difference=0,critical=0;
+ const total=raw.mask.length,limit=Math.max(12,Math.min(total*.035,raw.pixels*(options.maxChange??.105)+35));
+ for(let i=0;i<total;i++)if(after[i]!==raw.mask[i]){
+  difference++;if(difference>limit)return {ok:false,why:'boundary error budget exceeded',difference};
+  if(finePixel(raw.mask,raw.w,raw.h,i))critical++;
+ }
+ if(options.protectFine!==false&&critical>0)return {ok:false,why:'thin metal or slit modified',difference,critical};
+ return {ok:true,difference,initial,final};
+}
+function rdpChain(points,tol){
+ const n=points.length;if(n<=2)return points.slice();
+ const keep=new Uint8Array(n);keep[0]=keep[n-1]=1;
+ const stack=[[0,n-1]],tol2=tol*tol;
+ while(stack.length){
+  const [i,j]=stack.pop(),a=points[i],b=points[j],dx=b[0]-a[0],dy=b[1]-a[1],len2=dx*dx+dy*dy;
+  let max=tol2,index=-1;
+  for(let k=i+1;k<j;k++){
+   const p=points[k],t=len2?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len2)):0;
+   const e=(p[0]-a[0]-t*dx)**2+(p[1]-a[1]-t*dy)**2;
+   if(e>max){max=e;index=k;}
+  }
+  if(index>=0){keep[index]=1;stack.push([i,index],[index,j]);}
+ }
+ return points.filter((_,i)=>keep[i]);
+}
+function rdpRing(points,tol){
+ let start=0;for(let i=1;i<points.length;i++)if(points[i][0]+points[i][1]<points[start][0]+points[start][1])start=i;
+ const p=points.slice(start).concat(points.slice(0,start)),half=Math.floor(p.length/2);
+ const result=rdpChain(p.slice(0,half+1),tol).slice(0,-1).concat(rdpChain(p.slice(half).concat([p[0]]),tol).slice(0,-1));
+ return tidy(result);
+}
+function sampleQuadratic(a,b,c,steps){
+ const out=[];for(let i=1;i<=steps;i++){const t=i/steps,s=1-t;out.push([s*s*a[0]+2*s*t*b[0]+t*t*c[0],s*s*a[1]+2*s*t*b[1]+t*t*c[1]]);}return out;
+}
+function potraceStyle(raw,opt){
+ const tolerance=Math.max(.45,Math.min(2.5,num(opt.tolerance,1.25)));
+ let curves=0;
+ const loops=raw.loops.map(l=>{
+  const corners=rdpRing(l.points,Math.max(.4,tolerance*.7));
+  if(corners.length<3)return {...l,points:l.points};
+  let path=[];
+  for(let i=0;i<corners.length;i++){
+   const prev=corners[(i+corners.length-1)%corners.length],p=corners[i],next=corners[(i+1)%corners.length];
+   const d1=dist(prev,p),d2=dist(p,next),turn=Math.atan2(cross(prev,p,next),(p[0]-prev[0])*(next[0]-p[0])+(p[1]-prev[1])*(next[1]-p[1]));
+   const round=Math.abs(turn)<1.24&&Math.abs(turn)>.06&&d1>1.4&&d2>1.4;
+   if(!round){path.push(p.slice());continue;}
+   const len=Math.min(d1,d2)*.28;
+   const a=[p[0]-(p[0]-prev[0])*len/d1,p[1]-(p[1]-prev[1])*len/d1];
+   const b=[p[0]+(next[0]-p[0])*len/d2,p[1]+(next[1]-p[1])*len/d2];
+   path.push(a,...sampleQuadratic(a,p,b,Math.max(3,Math.ceil(len/.4))));
+   curves++;
+  }
+  return {...l,points:tidy(path)};
+ });
+ return {loops,details:{bezierTurns:curves,curveRepresentation:'sampled quadratic Bezier'}};
+}
+function rgbaStrength(rgba,raw,opt){
+ const f=new Float32Array(raw.w*raw.h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],threshold=num(opt.threshold,127),ctol=num(opt.colorTolerance,80);
+ for(let i=0;i<f.length;i++){
+  const k=4*i,a=rgba[k+3]/255;
+  const R=rgba[k]*a+255*(1-a),G=rgba[k+1]*a+255*(1-a),B=rgba[k+2]*a+255*(1-a);
+  let m;
+  if(colorMode){m=ctol-Math.hypot(R-target[0],G-target[1],B-target[2]);}
+  else{let gray=.2126*R+.7152*G+.0722*B;m=opt.light?gray-threshold:threshold-gray;}
+  f[i]=(raw.mask[i]?1:-1)*(Math.max(.08,Math.min(3,Math.abs(m)/20)));
+ }
+ return f;
+}
+function contoursIso(field,w,h){
+ const S=w+2,T=h+2,grid=new Float32Array(S*T);grid.fill(-2);
+ for(let y=0;y<h;y++)grid.set(field.subarray(y*w,(y+1)*w),(y+1)*S+1);
+ const nodes=new Map();
+ function vertex(key,p){let o=nodes.get(key);if(!o){o={p,links:[]};nodes.set(key,o);}return o;}
+ function connect(a,b){if(a.key===b.key)return;vertex(a.key,a.p).links.push(b.key);vertex(b.key,b.p).links.push(a.key);}
+ const interp=(a,b)=>{let t=a/(a-b);return Math.max(0,Math.min(1,finite(t)?t:.5));};
+ for(let y=0;y<T-1;y++)for(let x=0;x<S-1;x++){
+  const a=grid[y*S+x],b=grid[y*S+x+1],c=grid[(y+1)*S+x+1],d=grid[(y+1)*S+x];
+  const flags=[a>=0,b>=0,c>=0,d>=0];
+  const e=[];
+  if(flags[0]!==flags[1])e.push({id:0,key:'H'+y+':'+x,p:[x-.5+interp(a,b),y-.5]});
+  if(flags[1]!==flags[2])e.push({id:1,key:'V'+y+':'+(x+1),p:[x+.5,y-.5+interp(b,c)]});
+  if(flags[3]!==flags[2])e.push({id:2,key:'H'+(y+1)+':'+x,p:[x-.5+interp(d,c),y+.5]});
+  if(flags[0]!==flags[3])e.push({id:3,key:'V'+y+':'+x,p:[x-.5,y-.5+interp(a,d)]});
+  if(e.length===2){connect(e[0],e[1]);continue;}
+  if(e.length===4){
+   const edges=Object.fromEntries(e.map(v=>[v.id,v])),center=(a+b+c+d)/4>=0;
+   const pairs=center===flags[0]?[[0,1],[2,3]]:[[0,3],[1,2]];
+   for(const [i,j] of pairs)connect(edges[i],edges[j]);
+  }
+ }
+ const loops=[],visited=new Set();
+ for(const [key,node] of nodes){
+  if(visited.has(key)||node.links.length!==2)continue;
+  let points=[],current=key,last=null,closed=false;
+  for(let i=0;i<nodes.size+1;i++){
+   if(visited.has(current)){closed=current===key;break;}
+   const u=nodes.get(current);if(!u||u.links.length!==2)break;
+   visited.add(current);points.push(u.p);
+   const next=u.links[0]===last?u.links[1]:u.links[0];last=current;current=next;
+  }
+  if(closed&&points.length>=3)loops.push({points:tidy(points)});
+ }
+ return classify(loops);
+}
+function marching(raw,rgba,opt){
+ let f=rgbaStrength(rgba,raw,opt),loops=contoursIso(f,raw.w,raw.h);
+ const tol=Math.max(.25,Math.min(1.2,num(opt.tolerance,1.25)*.5));
+ loops=loops.map(l=>({...l,points:rdpRing(l.points,tol)}));
+ return {loops,details:{field:'image intensity/color confidence',subpixel:true}};
+}
+function distanceChamfer(mask,w,h,seed){
+ const n=mask.length,INF=1e5,arr=new Float32Array(n),diag=Math.SQRT2;
+ for(let i=0;i<n;i++)arr[i]=mask[i]===seed?0:INF;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const i=y*w+x;if(x)arr[i]=Math.min(arr[i],arr[i-1]+1);
+  if(y){arr[i]=Math.min(arr[i],arr[i-w]+1);if(x)arr[i]=Math.min(arr[i],arr[i-w-1]+diag);if(x<w-1)arr[i]=Math.min(arr[i],arr[i-w+1]+diag);}
+ }
+ for(let y=h-1;y>=0;y--)for(let x=w-1;x>=0;x--){
+  const i=y*w+x;if(x<w-1)arr[i]=Math.min(arr[i],arr[i+1]+1);
+  if(y<h-1){arr[i]=Math.min(arr[i],arr[i+w]+1);if(x)arr[i]=Math.min(arr[i],arr[i+w-1]+diag);if(x<w-1)arr[i]=Math.min(arr[i],arr[i+w+1]+diag);}
+ }
+ return arr;
+}
+function sdfContours(raw,opt){
+ const metal=distanceChamfer(raw.mask,raw.w,raw.h,1),empty=distanceChamfer(raw.mask,raw.w,raw.h,0),n=raw.mask.length,f=new Float32Array(n);
+ for(let i=0;i<n;i++)f[i]=raw.mask[i]?empty[i]-.5:-(metal[i]-.5);
+ const weight=Math.max(0,Math.min(.7,num(opt.sdfSmoothing,.25))),smooth=new Float32Array(n);
+ for(let y=0;y<raw.h;y++)for(let x=0;x<raw.w;x++){
+  let sum=0,cnt=0;
+  for(let yy=Math.max(0,y-1);yy<=Math.min(raw.h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(raw.w-1,x+1);xx++){
+   const v=(x===xx&&y===yy)?4:(x===xx||y===yy?2:1);sum+=f[yy*raw.w+xx]*v;cnt+=v;
+  }
+  smooth[y*raw.w+x]=(1-weight)*f[y*raw.w+x]+weight*sum/cnt;
+ }
+ let loops=contoursIso(smooth,raw.w,raw.h);
+ const tol=Math.max(.2,Math.min(1.1,num(opt.tolerance,1.25)*.45));
+ loops=loops.map(l=>({...l,points:rdpRing(l.points,tol)}));
+ return {loops,details:{field:'8-neighbour chamfer signed-distance',smoothing:weight}};
+}
+function consensusLine(points,i,end,threshold){
+ const A=points[i],B=points[end],vx=B[0]-A[0],vy=B[1]-A[1],length=Math.hypot(vx,vy);
+ if(length<3)return null;
+ const maxError=Math.max(.55,threshold);
+ let inliers=0,errors=0;
+ for(let k=i;k<=end;k++){
+  const d=Math.abs((points[k][0]-A[0])*vy-(points[k][1]-A[1])*vx)/length;
+  if(d<=maxError){inliers++;errors+=d*d;}
+ }
+ const total=end-i+1;
+ return {inliers,rate:inliers/total,rms:Math.sqrt(errors/Math.max(1,inliers))};
+}
+function ransacLoop(loop,tol){
+ const pts=loop.points,n=pts.length;if(n<8)return {...loop,points:pts};
+ const out=[],threshold=Math.max(.7,Math.min(1.45,tol));
+ for(let i=0;i<n;){
+  let best=i+1,score=-1;
+  const end=Math.min(n-1,i+Math.min(96,n-i-1));
+  // Deterministic RANSAC endpoint hypotheses: reproducible across browsers.
+  for(let j=i+4;j<=end;j++){
+   if(j>i+4&&j%3!==0&&j!==end)continue;
+   const candidate=consensusLine(pts,i,j,threshold);
+   if(!candidate||candidate.rate<.9||candidate.rms>threshold*.64)continue;
+   const rank=j-i-candidate.rms*.35;
+   if(rank>score){score=rank;best=j;}
+  }
+  out.push(pts[i].slice());
+  i=best;
+ }
+ const line=tidy(out);
+ return {...loop,points:line.length>=3?line:pts};
+}
+function ransacHybrid(rgba,raw,opt){
+ const base=C.vectorize(rgba,raw.w,raw.h,{...opt,vectorMode:'hybrid',smooth:true});
+ let fitted=0,arcs=0;
+ const loops=base.loops.map((l,i)=>{
+  if(l.curves?.some(s=>s.kind==='arc')){arcs+=l.curves.filter(s=>s.kind==='arc').length;return l;}
+  const proposed=ransacLoop(raw.loops[i]||l,num(opt.tolerance,1.25));
+  if(proposed.points.length<l.points.length)fitted++;
+  return proposed;
+ });
+ return {loops,details:{nativeArcs:arcs,ransacFittedLoops:fitted}};
+}
+
+function sampleArcCurves(curves){
+ const points=[];
+ for(const seg of curves){
+  const n=Math.max(8,Math.ceil(Math.abs(seg.sweep)*Math.max(8,Math.hypot(seg.start[0]-seg.center[0],seg.start[1]-seg.center[1]))/2));
+  const r=Math.hypot(seg.start[0]-seg.center[0],seg.start[1]-seg.center[1]),a=Math.atan2(seg.start[1]-seg.center[1],seg.start[0]-seg.center[0]);
+  for(let j=0;j<n;j++){const t=a+seg.sweep*j/n;points.push([seg.center[0]+r*Math.cos(t),seg.center[1]+r*Math.sin(t)]);}
+ }
+ return points;
+}
+
+function circlePrimitive(points){
+ if(points.length<12)return null;
+ const bounds=points.reduce((v,p)=>[Math.min(v[0],p[0]),Math.min(v[1],p[1]),Math.max(v[2],p[0]),Math.max(v[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);
+ let cx=(bounds[0]+bounds[2])/2,cy=(bounds[1]+bounds[3])/2,r=0;
+ for(const p of points)r+=Math.hypot(p[0]-cx,p[1]-cy);r/=points.length;
+ if(r<3||Math.abs(bounds[2]-bounds[0]-(bounds[3]-bounds[1]))>2)return null;
+ let error=0;
+ for(const p of points)error+=Math.pow(Math.hypot(p[0]-cx,p[1]-cy)-r,2);
+ if(Math.sqrt(error/points.length)>1.15)return null;
+ const sign=Math.sign(C.area(points)),begin=Math.atan2(points[0][1]-cy,points[0][0]-cx),curves=[];
+ for(let i=0;i<4;i++){
+  const a=begin+sign*Math.PI/2*i,b=begin+sign*Math.PI/2*(i+1);
+  curves.push({kind:'arc',start:P(cx+r*Math.cos(a),cy+r*Math.sin(a)),end:P(cx+r*Math.cos(b),cy+r*Math.sin(b)),center:P(cx,cy),sweep:sign*Math.PI/2});
+ }
+ return {points:sampleArcCurves(curves),curves};
+}
+function parametricRaster(raw,rgba,opt){
+ const base=ransacHybrid(rgba,raw,opt);
+ let circles=0,rectangles=0;
+ const loops=base.loops.map((l,i)=>{
+  const rawLoop=raw.loops[i]||l,primitive=circlePrimitive(rawLoop.points);
+  if(primitive){circles++;return {...l,...primitive};}
+  const p=l.points,b=p.reduce((q,v)=>[Math.min(q[0],v[0]),Math.min(q[1],v[1]),Math.max(q[2],v[0]),Math.max(q[3],v[1])],[Infinity,Infinity,-Infinity,-Infinity]);
+  const boxArea=(b[2]-b[0])*(b[3]-b[1]);
+  if(boxArea>0&&Math.abs(Math.abs(C.area(rawLoop.points))-boxArea)/boxArea<.06){
+   const rect=[P(b[0],b[1]),P(b[2],b[1]),P(b[2],b[3]),P(b[0],b[3])];rectangles++;
+   return {...l,points:(C.area(rect)>0)!==l.hole?rect.reverse():rect};
+  }
+  return l;
+ });
+ return {loops,details:{parameterizedCircles:circles,parameterizedRectangles:rectangles,otherShapes:'line/arc fallback'}};
+}
+function generate(rgba,w,h,opt={}){
+ if(!['potrace','marching','ransac','sdf','cadsvg'].includes(opt.vectorMode))return C.vectorize(rgba,w,h,opt);
+ const raw=C.vectorize(rgba,w,h,{...opt,vectorMode:'exact',smooth:false}),mode=opt.vectorMode;
+ let proposal;
+ try{
+  if(mode==='potrace')proposal=potraceStyle(raw,opt);
+  else if(mode==='marching')proposal=marching(raw,rgba,opt);
+  else if(mode==='ransac')proposal=ransacHybrid(rgba,raw,opt);
+  else if(mode==='sdf')proposal=sdfContours(raw,opt);
+  else proposal=parametricRaster(raw,rgba,opt);
+  const loops=classify(proposal.loops);
+  // Preserve original region topology. Never allow a fine gap to disappear silently.
+  const gate=validCandidate(raw,loops,{maxChange:mode==='sdf'?.13:.11,protectFine:true});
+  if(!gate.ok){
+   const fallback=C.vectorize(rgba,w,h,{...opt,vectorMode:'hybrid',smooth:true});
+   return {...fallback,advanced:{engine:mode,accepted:false,reason:gate.why,mode:'topology-safe fallback',...proposal.details}};
+  }
+  return {...raw,loops,advanced:{engine:mode,accepted:true,changedPixels:gate.difference,mode:'fitted',...proposal.details}};
+ }catch(err){
+  const fallback=C.vectorize(rgba,w,h,{...opt,vectorMode:'hybrid',smooth:true});
+  return {...fallback,advanced:{engine:mode,accepted:false,reason:err.message,mode:'safe fallback'}};
+ }
+}
+function svgColor(s){
+ if(!s)return null;
+ s=String(s).trim().toLowerCase();
+ if(s==='none')return 'none';
+ const named={black:'#000000',white:'#ffffff',red:'#ff0000',yellow:'#ffff00',cyan:'#00ffff',blue:'#0000ff',transparent:'none'};
+ s=named[s]||s;
+ if(/^#[a-f0-9]{3}$/.test(s))s='#'+[s[1],s[2],s[3]].map(q=>q+q).join('');
+ if(/^#[a-f0-9]{6}$/.test(s))return [1,3,5].map(i=>parseInt(s.slice(i,i+2),16));
+ const m=s.match(/^rgb\(\s*(\d+)\s*[, ]\s*(\d+)\s*[, ]\s*(\d+)\s*\)$/);
+ return m?m.slice(1,4).map(Number):null;
+}
+function svgMatrix(str){
+ let m=[1,0,0,1,0,0],re=/(matrix|translate|scale|rotate)\s*\(([^)]*)\)/g,found;
+ const mul=(a,b)=>[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
+ while((found=re.exec(str||''))){
+  const v=(found[2].match(/[-+]?(?:\d*\.?\d+|\d+\.?)(?:e[-+]?\d+)?/gi)||[]).map(Number);let n;
+  if(found[1]==='matrix'&&v.length===6)n=v;
+  if(found[1]==='translate')n=[1,0,0,1,v[0]||0,v[1]||0];
+  if(found[1]==='scale')n=[v[0]??1,0,0,v[1]??v[0]??1,0,0];
+  if(found[1]==='rotate'){
+   const a=(v[0]||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a),cx=v[1]||0,cy=v[2]||0;
+   n=[c,s,-s,c,cx-c*cx+s*cy,cy-s*cx-c*cy];
+  }
+  if(n)m=mul(m,n);
+ }
+ return m;
+}
+function mulMatrix(a,b){return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];}
+const transform=(m,p)=>[m[0]*p[0]+m[2]*p[1]+m[4],m[1]*p[0]+m[3]*p[1]+m[5]];
+function svgPath(d){
+ const tokens=(d.match(/[AaCcHhLlMmQqSsTtVvZz]|[-+]?(?:\d*\.?\d+|\d+\.?)(?:e[-+]?\d+)?/g)||[]),out=[];
+ let i=0,cmd=null,xy=[0,0],start=[0,0],points=[],control=null,prevCmd=null;
+ const isCmd=v=>typeof v==='string'&&/^[a-z]$/i.test(v);
+ function finish(){if(points.length>=3)out.push({points:tidy(points)});points=[];}
+ const get=n=>{if(tokens.length-i<n||tokens.slice(i,i+n).some(isCmd))return null;let a=tokens.slice(i,i+n).map(Number);i+=n;return a;};
+ const pt=(x,y,relative)=>relative?[xy[0]+x,xy[1]+y]:[x,y];
+ const cubic=(p0,p1,p2,p3)=>{
+  const len=dist(p0,p1)+dist(p1,p2)+dist(p2,p3),steps=Math.max(8,Math.min(96,Math.ceil(len/.4)));
+  for(let z=1;z<=steps;z++){const t=z/steps,s=1-t;points.push([s*s*s*p0[0]+3*s*s*t*p1[0]+3*s*t*t*p2[0]+t*t*t*p3[0],s*s*s*p0[1]+3*s*s*t*p1[1]+3*s*t*t*p2[1]+t*t*t*p3[1]]);}
+ };
+ const arc=(p0,rx,ry,phi,large,sweep,p1)=>{
+  rx=Math.abs(rx);ry=Math.abs(ry);
+  if(rx<1e-9||ry<1e-9){points.push(p1);return;}
+  const rad=phi*Math.PI/180,cp=Math.cos(rad),sp=Math.sin(rad),dx=(p0[0]-p1[0])/2,dy=(p0[1]-p1[1])/2;
+  const xx=cp*dx+sp*dy,yy=-sp*dx+cp*dy;
+  let lambda=xx*xx/(rx*rx)+yy*yy/(ry*ry);if(lambda>1){const k=Math.sqrt(lambda);rx*=k;ry*=k;}
+  const sign=large===sweep?-1:1,num1=Math.max(0,(rx*rx*ry*ry-rx*rx*yy*yy-ry*ry*xx*xx)/(rx*rx*yy*yy+ry*ry*xx*xx||1));
+  const q=sign*Math.sqrt(num1),cxp=q*rx*yy/ry,cyp=-q*ry*xx/rx;
+  const cx=cp*cxp-sp*cyp+(p0[0]+p1[0])/2,cy=sp*cxp+cp*cyp+(p0[1]+p1[1])/2;
+  const ux=(xx-cxp)/rx,uy=(yy-cyp)/ry,vx=(-xx-cxp)/rx,vy=(-yy-cyp)/ry;
+  let a=Math.atan2(uy,ux),delta=Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy);
+  if(!sweep&&delta>0)delta-=2*Math.PI;if(sweep&&delta<0)delta+=2*Math.PI;
+  const steps=Math.max(8,Math.min(180,Math.ceil(Math.abs(delta)*Math.max(rx,ry)/.5)));
+  for(let k=1;k<=steps;k++){const t=a+delta*k/steps;points.push([cx+rx*Math.cos(t)*cp-ry*Math.sin(t)*sp,cy+rx*Math.cos(t)*sp+ry*Math.sin(t)*cp]);}
+ };
+ let guard=0;
+ while(i<tokens.length&&guard++<200000){
+  if(isCmd(tokens[i]))cmd=tokens[i++];
+  if(!cmd)break;
+  let up=cmd.toUpperCase(),rel=cmd!==up,values,was=xy.slice();
+  if(up==='Z'){if(points.length){finish();xy=start.slice();}cmd=null;control=null;prevCmd='Z';continue;}
+  const length={M:2,L:2,H:1,V:1,C:6,S:4,Q:4,T:2,A:7}[up];
+  if(!length)throw Error('SVG path contains unsupported command: '+cmd);
+  values=get(length);if(!values){if(i<tokens.length&&isCmd(tokens[i]))continue;break;}
+  if(up==='M'){if(points.length)finish();xy=pt(values[0],values[1],rel);start=xy.slice();points=[xy.slice()];cmd=rel?'l':'L';}
+  if(up==='L'){xy=pt(values[0],values[1],rel);points.push(xy.slice());}
+  if(up==='H'){xy=[rel?xy[0]+values[0]:values[0],xy[1]];points.push(xy.slice());}
+  if(up==='V'){xy=[xy[0],rel?xy[1]+values[0]:values[0]];points.push(xy.slice());}
+  if(up==='C'||up==='S'){
+   const reflected=control&&['C','S'].includes(prevCmd)?[2*xy[0]-control[0],2*xy[1]-control[1]]:xy.slice();
+   const a=up==='C'?pt(values[0],values[1],rel):reflected;
+   const b=up==='C'?pt(values[2],values[3],rel):pt(values[0],values[1],rel);
+   const end=up==='C'?pt(values[4],values[5],rel):pt(values[2],values[3],rel);
+   cubic(xy,a,b,end);xy=end;control=b;
+  }
+  if(up==='Q'||up==='T'){
+   const a=up==='Q'?pt(values[0],values[1],rel):(control&&['Q','T'].includes(prevCmd)?[2*xy[0]-control[0],2*xy[1]-control[1]]:xy.slice());
+   const end=up==='Q'?pt(values[2],values[3],rel):pt(values[0],values[1],rel);
+   cubic(xy,[xy[0]+2*(a[0]-xy[0])/3,xy[1]+2*(a[1]-xy[1])/3],[end[0]+2*(a[0]-end[0])/3,end[1]+2*(a[1]-end[1])/3],end);
+   xy=end;control=a;
+  }
+  if(up==='A'){const end=pt(values[5],values[6],rel);arc(xy,values[0],values[1],values[2],!!values[3],!!values[4],end);xy=end;control=null;}
+  if(!['C','S','Q','T'].includes(up))control=null;
+  prevCmd=up;
+ }
+ // Do not silently close an open SVG path: this tool models filled closed metal.
+ if(points.length&&close(points[0],points[points.length-1]))finish();
+ return out;
+}
+function importSVG(text,sourceW,sourceH,crop,outputW,outputH,opt={}){
+ if(typeof DOMParser==='undefined')throw Error('SVG direct import requires a browser DOMParser');
+ if(text.length>3e6)throw Error('SVG is too large for safe local parsing');
+ const doc=new DOMParser().parseFromString(text,'image/svg+xml');
+ if(doc.querySelector('parsererror'))throw Error('SVG XML is malformed');
+ const svg=doc.documentElement;if(svg.localName!=='svg')throw Error('Not an SVG document');
+ const vb=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+ const box=vb.length===4&&vb.every(finite)&&vb[2]>0&&vb[3]>0?vb:[0,0,sourceW,sourceH];
+ const rootM=[sourceW/box[2],0,0,sourceH/box[3],-box[0]*sourceW/box[2],-box[1]*sourceH/box[3]];
+ const clipM=[outputW/crop.w,0,0,outputH/crop.h,-crop.x*outputW/crop.w,-crop.y*outputH/crop.h];
+ const combined=mulMatrix(clipM,rootM);
+ let loops=[],seen=0,skipped=0,exactCircles=0,curveSamples=0;
+ const metadata={};
+ function accepted(el){
+  const style=el.getAttribute('style')||'',found=style.match(/(?:^|;)\s*fill\s*:\s*([^;]+)/i);
+  const fill=svgColor(el.getAttribute('fill')||found?.[1]||'black');
+  if(fill==='none')return false;
+  if(opt.materialMode!=='color')return true;
+  if(!Array.isArray(fill))return false;
+  const target=opt.color||[255,255,0];
+  return Math.hypot(...fill.map((v,i)=>v-target[i]))<=num(opt.colorTolerance,80);
+ }
+ function walk(parent,M){
+  for(const el of parent.children||[]){
+   if(['defs','metadata','clipPath','mask','script','style','pattern','symbol','foreignObject','filter'].includes(el.localName)){skipped++;continue;}
+   const matrix=mulMatrix(M,svgMatrix(el.getAttribute('transform')||''));
+   if(['svg','g','a'].includes(el.localName)){walk(el,matrix);continue;}
+   if(!accepted(el))continue;
+   const A=k=>num(el.getAttribute(k),0),type=el.localName;let shapes=[];
+   if(type==='rect'){
+    const x=A('x'),y=A('y'),w=A('width'),h=A('height');
+    if(w>0&&h>0)shapes=[{points:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]}];
+   }else if(type==='circle'||type==='ellipse'){
+    let cx=A('cx'),cy=A('cy'),rx=type==='circle'?A('r'):A('rx'),ry=type==='circle'?A('r'):A('ry');
+    if(rx>0&&ry>0){
+     const points=[];for(let i=0;i<128;i++){let t=i*Math.PI/64;points.push([cx+rx*Math.cos(t),cy+ry*Math.sin(t)]);}
+     const dot=matrix[0]*matrix[2]+matrix[1]*matrix[3],sx=Math.hypot(matrix[0],matrix[1]),sy=Math.hypot(matrix[2],matrix[3]);
+     const isCircle=Math.abs(rx*sx-ry*sy)<1e-6*Math.max(1,rx*sx,ry*sy)&&Math.abs(dot)<1e-8;
+     if(isCircle){
+      const c=transform(matrix,[cx,cy]),r=rx*sx,dir=matrix[0]*matrix[3]-matrix[1]*matrix[2]>=0?1:-1,start=transform(matrix,[cx+rx,cy]);
+      const begin=Math.atan2(start[1]-c[1],start[0]-c[0]),curves=[];
+      for(let j=0;j<4;j++){
+       const u=begin+dir*j*Math.PI/2,v=begin+dir*(j+1)*Math.PI/2;
+       curves.push({kind:'arc',start:[c[0]+r*Math.cos(u),c[1]+r*Math.sin(u)],end:[c[0]+r*Math.cos(v),c[1]+r*Math.sin(v)],center:c.slice(),sweep:dir*Math.PI/2});
+      }
+      shapes=[{points:sampleArcCurves(curves),curves,transformed:true}];exactCircles++;
+     }else{shapes=[{points}];curveSamples++;}
+    }
+   }else if(type==='polygon'||type==='polyline'){
+    const v=(el.getAttribute('points')||'').match(/[-+]?(?:\d*\.?\d+|\d+\.?)(?:e[-+]?\d+)?/gi)||[];
+    let p=[];for(let j=0;j+1<v.length;j+=2)p.push([Number(v[j]),Number(v[j+1])]);
+    if(type==='polygon'||p.length>2&&close(p[0],p[p.length-1]))shapes=[{points:tidy(p)}];
+   }else if(type==='path'){
+    shapes=svgPath(el.getAttribute('d')||'');curveSamples++;
+   }else if(type==='line'){skipped++;continue;}
+   else{skipped++;continue;}
+   for(const shape of shapes){
+    let transformed=shape.transformed?shape.points:shape.points.map(p=>transform(matrix,p));
+    const converted=tidy(transformed);
+    if(converted.length<3)continue;
+    // Simple primitives keep native arcs; freeform paths are sampled.
+    const curves=shape.curves?.map(s=>({...s}));
+    loops.push({points:converted,...(curves?{curves}:{})});seen++;
+   }
+  }
+ }
+ walk(svg,combined);
+ loops=classify(loops);
+ if(!loops.length)throw Error('No compatible filled SVG paths found; check fill/color selection and paths');
+ return {loops,info:{source:'svg-native',parsedShapes:seen,skipped,exactCircles,sampledCurves:curveSamples,viewBox:box}};
+}
+const api={generate,contoursIso,distanceChamfer,potraceStyle,marching,sdfContours,ransacHybrid,parametricRaster,importSVG,svgPath,svgMatrix,validCandidate,rasterize,maskTopology,classify};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;
+else root.FSSAdvanced=api;
+})(typeof self!=='undefined'?self:globalThis);
 </script><script id="codegen-code">
 /* Generate reproducible Python geometry from the FINAL vector loops (no browser dependencies). */
 (function (root) {
@@ -644,12 +1147,12 @@ else root.FSSCodegen = api;
 })(typeof self !== 'undefined' ? self : globalThis);
 </script><script>
 'use strict';
-const $=id=>document.getElementById(id), controls=['cropX','cropY','cropW','cropH','polarity','threshold','materialMode','metalColor','colorTolerance','minPixels','resolution','vectorMode','fitTolerance','symmetryMode','symmetryThreshold','reference','width','height','lock','origin','entity','guide'];
+const $=id=>document.getElementById(id), controls=['cropX','cropY','cropW','cropH','polarity','threshold','materialMode','metalColor','colorTolerance','minPixels','resolution','vectorMode','fitTolerance','sdfSmoothing','symmetryMode','symmetryThreshold','reference','width','height','lock','origin','entity','guide'];
 let source=document.createElement('canvas'),working=document.createElement('canvas'),result=null,geometry=null,segments=[],selectedSegment=0,downloadUrl=null,dxfContent='',view='vector',imageName='fss_demo',busy=false,request=0,timer,worker=null,pickingMetal=false;
-let generatedCode='';
+let generatedCode='',svgText=null;
 let editorOn=false,editSelected=null,connectStart=null,editUndo=[],editRedo=[],autoLoops=null;
 let editZoom=1,editPanX=0,editPanY=0,editDrag=null,editIgnoreClick=false;
-try {const js=$('core-code').textContent+'\nself.onmessage=e=>{try{let d=e.data;self.postMessage({id:d.id,result:FSSCore.vectorize(d.rgba,d.w,d.h,d.opt)});}catch(err){self.postMessage({id:e.data.id,error:err.message});}}';let u=URL.createObjectURL(new Blob([js],{type:'text/javascript'}));worker=new Worker(u);URL.revokeObjectURL(u);worker.onmessage=e=>complete(e.data);worker.onerror=()=>{worker.terminate();worker=null;setStatus('当前浏览器不支持后台处理，已切换到本地处理模式。','warn');schedule();};}catch(e){worker=null;}
+try {const js=$('core-code').textContent+'\n'+$('advanced-code').textContent+'\nself.onmessage=e=>{try{let d=e.data;self.postMessage({id:d.id,result:FSSAdvanced.generate(d.rgba,d.w,d.h,d.opt)});}catch(err){self.postMessage({id:e.data.id,error:err.message});}}';let u=URL.createObjectURL(new Blob([js],{type:'text/javascript'}));worker=new Worker(u);URL.revokeObjectURL(u);worker.onmessage=e=>complete(e.data);worker.onerror=()=>{worker.terminate();worker=null;setStatus('当前浏览器不支持后台处理，已切换到本地处理模式。','warn');schedule();};}catch(e){worker=null;}
 function showMaterialSettings(){$('graySettings').classList.toggle('hidden',$('materialMode').value==='color');$('colorSettings').classList.toggle('hidden',$('materialMode').value!=='color');$('colorToleranceValue').textContent=$('colorTolerance').value;}
 function colorRgb(){let hex=$('metalColor').value;return [1,3,5].map(k=>parseInt(hex.slice(k,k+2),16));}
 function setStatus(t,k=''){ $('status').textContent=t;$('status').className='status '+k;}
@@ -657,8 +1160,8 @@ function disable(v){busy=v;let blocked=v||!geometry||FSSCore.openContours(geomet
 function bounds(){let x=Number($('cropX').value),y=Number($('cropY').value),w=Number($('cropW').value),h=Number($('cropH').value);if(![x,y,w,h].every(Number.isInteger)||x<0||y<0||w<1||h<1||x+w>source.width||y+h>source.height)throw Error('裁切范围必须位于原图内，且为整数像素。');return{x,y,w,h};}
 function prep(){let b=bounds(),max=Number($('resolution').value),s=Math.min(1,max/Math.max(b.w,b.h));working.width=Math.max(1,Math.round(b.w*s));working.height=Math.max(1,Math.round(b.h*s));let c=working.getContext('2d',{willReadFrequently:true});c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.clearRect(0,0,working.width,working.height);c.drawImage(source,b.x,b.y,b.w,b.h,0,0,working.width,working.height);return c.getImageData(0,0,working.width,working.height);}
 function schedule(){clearTimeout(timer);resetEditor(true);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);setStatus('重新计算轮廓…');timer=setTimeout(process,140);}
-function process(){let id=request;try{let img=prep(),opt={threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:Number($('minPixels').value),vectorMode:$('vectorMode').value,smooth:$('vectorMode').value!=='exact',tolerance:Number($('fitTolerance').value),symmetryMode:$('symmetryMode').value,symmetryThreshold:Number($('symmetryThreshold').value)/100};if(!Number.isInteger(opt.minPixels)||opt.minPixels<1||opt.minPixels>1000000)throw Error('小区域阈值需为 1 到 1000000 之间的整数。');$('thresholdValue').textContent=opt.threshold;if(worker)worker.postMessage({id,rgba:img.data,w:img.width,h:img.height,opt},[img.data.buffer]);else complete({id,result:FSSCore.vectorize(img.data,img.width,img.height,opt)});}catch(e){complete({id,error:e.message});}}
-function complete(d){if(d.id!==request)return;if(d.error){result=null;geometry=null;segments=[];clearDownload();disable(false);setStatus(d.error,'error');renderSegments();draw();return;}result=d.result;autoLoops=FSSCore.cloneLoops(result.loops);editUndo=[];editRedo=[];editSelected=null;connectStart=null;disable(false);updateScale();}
+function process(){let id=request;try{let img=prep(),opt={threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:Number($('minPixels').value),vectorMode:$('vectorMode').value,smooth:$('vectorMode').value!=='exact',tolerance:Number($('fitTolerance').value),symmetryMode:$('symmetryMode').value,symmetryThreshold:Number($('symmetryThreshold').value)/100,sdfSmoothing:Number($('sdfSmoothing').value)/100};if(svgText&&$('vectorMode').value==='cadsvg')opt.vectorMode='exact';if(!Number.isInteger(opt.minPixels)||opt.minPixels<1||opt.minPixels>1000000)throw Error('小区域阈值需为 1 到 1000000 之间的整数。');$('thresholdValue').textContent=opt.threshold;if(worker)worker.postMessage({id,rgba:img.data,w:img.width,h:img.height,opt},[img.data.buffer]);else complete({id,result:FSSAdvanced.generate(img.data,img.width,img.height,opt)});}catch(e){complete({id,error:e.message});}}
+function complete(d){if(d.id!==request)return;if(!d.error&&svgText&&$('vectorMode').value==='cadsvg'){try{const v=FSSAdvanced.importSVG(svgText,source.width,source.height,bounds(),d.result.w,d.result.h,{materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value)});const box=v.loops.flatMap(l=>l.points).reduce((b,p)=>[Math.min(b[0],p[0]),Math.min(b[1],p[1]),Math.max(b[2],p[0]),Math.max(b[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);d.result={...d.result,loops:v.loops,bounds:box,advanced:{engine:'cadsvg',accepted:true,mode:'native SVG direct import',...v.info}};}catch(err){d.error='SVG 几何导入失败：'+err.message;}}if(d.error){result=null;geometry=null;segments=[];clearDownload();disable(false);setStatus(d.error,'error');renderSegments();draw();return;}result=d.result;autoLoops=FSSCore.cloneLoops(result.loops);editUndo=[];editRedo=[];editSelected=null;connectStart=null;disable(false);updateScale();}
 function ratio(){let b=bounds();if($('reference').value==='image')return b.h/b.w;let p=result.bounds;return ((p[3]-p[1])/result.h*b.h)/((p[2]-p[0])/result.w*b.w);}
 function updateScale(changed){if(!result)return;try{if($('lock').checked){let r=ratio();if(changed==='height')$('width').value=+(Number($('height').value)/r).toPrecision(10);else $('height').value=+(Number($('width').value)*r).toPrecision(10);}let width=Number($('width').value),height=Number($('height').value);if(width<.000001||height<.000001||width>1000000||height>1000000||!Number.isFinite(width+height))throw Error('宽高需在 0.000001 到 1000000 mm 之间。');geometry=FSSCore.scale(result,{width,height,reference:$('reference').value,center:$('origin').value==='center'});segments=FSSCore.measureSegments(geometry);selectedSegment=Math.min(selectedSegment,Math.max(0,segments.length-1));if(FSSCore.openContours(geometry)){clearDownload();$('exportStatus').textContent='存在未闭合轮廓，请连接端点后再导出。';}else prepareDownload();disable(false);renderSegments();let outer=result.loops.filter(q=>!q.hole).length,hole=result.loops.length-outer,points=result.loops.reduce((s,q)=>s+q.points.length,0);$('outerCount').textContent=outer;$('holeCount').textContent=hole;$('pointCount').textContent=points.toLocaleString();$('fill').textContent=(100*result.pixels/(result.w*result.h)).toFixed(1)+'%';$('dimensions').textContent=fmt(width)+' × '+fmt(height)+' mm';$('scaleInfo').textContent='处理分辨率 '+result.w+' × '+result.h+' px\n每像素 '+fmt(geometry.sx)+' × '+fmt(geometry.sy)+' mm';
 let warnings=[];
@@ -670,7 +1173,7 @@ if(sym){
  $('symmetryInfo').textContent='吻合度：左右 '+percent(sym.scores.vertical)+' · 上下 '+percent(sym.scores.horizontal)+' · 中心 '+percent(sym.scores.rotation)+'；阈值 '+percent(sym.threshold)+'。'+(matches?'检测到：'+matches+'。':'未达到近似对称阈值。')+(result.symmetryStraightened?' 已使用对称直线替换 '+result.symmetryStraightened+' 段阶梯路径'+(result.symmetrySnappedSegments?'，其中 '+result.symmetrySnappedSegments+' 段采用精确镜像端点':'')+'。':'');
  if(result.symmetryStraightened)warnings.push('对称辅助修复 '+result.symmetryStraightened+' 段阶梯线，移除 '+result.symmetryVerticesRemoved+' 个冗余顶点。');
 }
-let pending=result.loops.filter(q=>q.open).length;if(pending)warnings.push('手动编辑中有 '+pending+' 条未闭合轮廓，DXF 导出已禁用。');let b=bounds();if(result.w!==b.w||result.h!==b.h)warnings.push('图片已降采样；小于一个处理像素的线或缝可能丢失。');if(result.diagonal)warnings.push('存在 '+result.diagonal+' 处仅角点接触，请检查连接关系。');if(result.removed)warnings.push('已删除 '+result.removed+' 个小金属区域。');if(result.straightenedRuns)warnings.push('已修正 '+result.straightenedRuns+' 段斜直线，移除 '+result.staircaseVerticesRemoved+' 个像素阶梯顶点。');if(result.hybrid){warnings.push('混合几何重建：'+geometry.loops.reduce((s,l)=>s+(l.curves?l.curves.filter(c=>c.kind==='arc').length:0),0)+' 段原生圆弧，'+result.hybrid.lines+' 段直线；'+result.hybrid.rejected+' 个圆弧候选已保守回退。');if(Math.abs(geometry.sx-geometry.sy)>1e-9*Math.max(geometry.sx,geometry.sy))warnings.push('X/Y 缩放比例不同：圆弧已退化为采样线段，避免将椭圆错误导出为圆弧。');}if(result.changedPixels)warnings.push('直线拟合调整了约 '+result.changedPixels+' 个边界像素的覆盖；导出前请对照原图检查窄缝。');if(points>20000)warnings.push('顶点较多，CAD 导入可能较慢。');if(!$('lock').checked&&Math.abs(height/width-ratio())>1e-6)warnings.push('当前宽高与原图比例不同，将分别缩放 X / Y。');setStatus(warnings.length?warnings.join('\n'):'已生成 '+result.loops.length+' 条闭合轮廓。孔洞保留，坐标已转换为毫米。',warnings.length?'warn':'ok');updateEditorControls();draw();}catch(e){geometry=null;segments=[];clearDownload();disable(false);renderSegments();setStatus(e.message,'error');}}
+if(result.advanced){const z=result.advanced;const names={potrace:'Potrace 风格',marching:'Marching Squares',ransac:'RANSAC + 圆弧',sdf:'Level Set / SDF',cadsvg:'参数化 CAD / SVG'};$('advancedSummary').textContent=(names[z.engine]||z.engine)+'：'+(z.accepted?'几何检查通过':'已保护性回退到混合轮廓')+'；'+(z.mode||'')+(z.changedPixels!=null?'；边界像素变化 '+z.changedPixels:'')+(z.reason?'；原因：'+z.reason:'')+(z.parsedShapes!=null?'；解析 SVG 图形 '+z.parsedShapes:'')+(z.exactCircles?'；原生圆形 '+z.exactCircles:'')+(z.sampledCurves?'；采样曲线路径 '+z.sampledCurves:'');if(!z.accepted)warnings.push('当前方法生成的候选未通过验证：'+(z.reason||'几何校验失败')+'；DXF 使用兼容重建结果。');if(z.sampledCurves)warnings.push('SVG 曲线/椭圆已经采样为折线，无法恢复原生 SVG 控制参数；请按实际 CAD 尺寸核对。');if(z.skipped)warnings.push('SVG 中有 '+z.skipped+' 项非支持或辅助元素未导入。');}else $('advancedSummary').textContent='传统兼容模式：直接使用原有轮廓算法。';let pending=result.loops.filter(q=>q.open).length;if(pending)warnings.push('手动编辑中有 '+pending+' 条未闭合轮廓，DXF 导出已禁用。');let b=bounds();if(result.w!==b.w||result.h!==b.h)warnings.push('图片已降采样；小于一个处理像素的线或缝可能丢失。');if(result.diagonal)warnings.push('存在 '+result.diagonal+' 处仅角点接触，请检查连接关系。');if(result.removed)warnings.push('已删除 '+result.removed+' 个小金属区域。');if(result.straightenedRuns)warnings.push('已修正 '+result.straightenedRuns+' 段斜直线，移除 '+result.staircaseVerticesRemoved+' 个像素阶梯顶点。');if(result.hybrid){warnings.push('混合几何重建：'+geometry.loops.reduce((s,l)=>s+(l.curves?l.curves.filter(c=>c.kind==='arc').length:0),0)+' 段原生圆弧，'+result.hybrid.lines+' 段直线；'+result.hybrid.rejected+' 个圆弧候选已保守回退。');if(Math.abs(geometry.sx-geometry.sy)>1e-9*Math.max(geometry.sx,geometry.sy))warnings.push('X/Y 缩放比例不同：圆弧已退化为采样线段，避免将椭圆错误导出为圆弧。');}if(result.changedPixels)warnings.push('直线拟合调整了约 '+result.changedPixels+' 个边界像素的覆盖；导出前请对照原图检查窄缝。');if(points>20000)warnings.push('顶点较多，CAD 导入可能较慢。');if(!$('lock').checked&&Math.abs(height/width-ratio())>1e-6)warnings.push('当前宽高与原图比例不同，将分别缩放 X / Y。');setStatus(warnings.length?warnings.join('\n'):'已生成 '+result.loops.length+' 条闭合轮廓。孔洞保留，坐标已转换为毫米。',warnings.length?'warn':'ok');updateEditorControls();draw();}catch(e){geometry=null;segments=[];clearDownload();disable(false);renderSegments();setStatus(e.message,'error');}}
 function fmt(n){return Number(n.toPrecision(6)).toString();}
 function mm(n){return Number(n.toFixed(4)).toString();}
 function segmentId(s){return (s.hole?'H':'O')+(s.loopIndex+1)+'-'+(s.edgeIndex+1);}
@@ -836,7 +1339,7 @@ function adjustEditorZoom(target,clientX,clientY){
 }
 
 function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.4.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
+function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.5.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,sdf_smoothing:Number($('sdfSmoothing').value)/100,svg_input:!!svgText,advanced_method:result.advanced||null,hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
 $('export').onclick=e=>{if(!geometry||busy||!dxfContent){e.preventDefault();return;}$('exportStatus').textContent='已请求下载：'+$('export').download+'。如未保存，请点击“直接下载 DXF 文件”。';};$('saveAs').onclick=async()=>{if(!geometry||busy||!dxfContent)return;let name=$('directDownload').download;if(typeof window.showSaveFilePicker==='function'){try{let handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'DXF CAD 图案',accept:{'application/dxf':['.dxf']}}]});let stream=await handle.createWritable();await stream.write(new Blob([dxfContent],{type:'application/dxf'}));await stream.close();$('exportStatus').textContent='已保存：'+name;return;}catch(err){$('exportStatus').textContent=err.name==='AbortError'?'已取消保存。':'浏览器未允许另存为：'+err.message+'。请点击“直接下载 DXF 文件”。';return;}}$('exportStatus').textContent='正在请求下载：'+name+'。若未保存，请点击“直接下载 DXF 文件”。';$('directDownload').click();};$('directDownload').onclick=()=>{if(!geometry||busy)return false;$('exportStatus').textContent='已请求直接下载：'+$('directDownload').download+'。如仍被浏览器阻止，请使用 DXF 文本备用入口。';};$('copyDxf').onclick=async()=>{if(!dxfContent)return;try{await navigator.clipboard.writeText(dxfContent);$('exportStatus').textContent='DXF 文本已复制，请保存为 .dxf 文件。';}catch(e){$('dxfText').focus();$('dxfText').select();$('exportStatus').textContent='请复制已选中的 DXF 文本，保存为 .dxf 文件。';}};document.querySelector('.download-help').addEventListener('toggle',e=>{if(e.target.open)$('dxfText').value=dxfContent;});$('segmentCsv').onclick=()=>{if(!segments.length)return;let rows=['ID,loop_type,x1_mm,y1_mm,x2_mm,y2_mm,dx_mm,dy_mm,length_mm',...segments.map(s=>[segmentId(s),s.hole?'hole':'outer',s.x1,s.y1,s.x2,s.y2,s.dx,s.dy,s.length].join(','))];download('\ufeff'+rows.join('\r\n'),imageName+'_segments.csv','text/csv;charset=utf-8');};$('report').onclick=()=>{if(geometry&&!busy)download(JSON.stringify(report(),null,2),imageName+'_parameters.json','application/json');};$('offline').onclick=()=>download('<!doctype html>\n'+document.documentElement.outerHTML,'FSS_Pattern_Lab.html','text/html');
 function generateCode(){
  if(!geometry||busy||FSSCore.openContours(geometry)){generatedCode='';$('codeStatus').textContent='图案没有有效闭合轮廓，无法生成代码。';return;}
@@ -859,16 +1362,17 @@ $('codeCopy').onclick=async()=>{
 };
 $('codeDownload').onclick=()=>{if(!generatedCode)return;let suffix=$('codeKind').value==='dxf'?'_cst_dxf':'_pypssfss';download(generatedCode,imageName+suffix+'.py','text/x-python;charset=utf-8');$('codeStatus').textContent='已请求下载 Python 文件。';};
 function resetCrop(){for(let [id,v] of [['cropX',0],['cropY',0],['cropW',source.width],['cropH',source.height]])$(id).value=v;}
-function demo(){request++;source.width=400;source.height=400;let c=source.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,400,400);c.fillStyle='#111';c.fillRect(60,60,280,280);c.fillStyle='#fff';c.fillRect(105,105,190,190);c.fillStyle='#111';c.fillRect(180,180,40,40);imageName='fss_demo';renderThumbnail();$('filename').textContent='示例：带孔方环 + 中心金属岛 · 400 × 400 px';$('materialMode').value='gray';showMaterialSettings();$('polarity').value='dark';$('threshold').value=127;$('minPixels').value=1;resetCrop();schedule();}
+function demo(){svgText=null;request++;source.width=400;source.height=400;let c=source.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,400,400);c.fillStyle='#111';c.fillRect(60,60,280,280);c.fillStyle='#fff';c.fillRect(105,105,190,190);c.fillStyle='#111';c.fillRect(180,180,40,40);imageName='fss_demo';renderThumbnail();$('filename').textContent='示例：带孔方环 + 中心金属岛 · 400 × 400 px';$('materialMode').value='gray';showMaterialSettings();$('polarity').value='dark';$('threshold').value=127;$('minPixels').value=1;resetCrop();schedule();}
 function autoSelectMetal(){let size=256/maxNumber(source.width,source.height);size=Math.min(1,size);let sample=document.createElement('canvas');sample.width=Math.max(1,Math.round(source.width*size));sample.height=Math.max(1,Math.round(source.height*size));let c=sample.getContext('2d',{willReadFrequently:true});c.drawImage(source,0,0,sample.width,sample.height);let d=c.getImageData(0,0,sample.width,sample.height).data,warm=0,blue=0,sum=[0,0,0];for(let i=0;i<d.length;i+=4){let r=d[i],g=d[i+1],b=d[i+2];if(r>170&&g>145&&b<100&&r-b>100&&g-b>90){warm++;sum[0]+=r;sum[1]+=g;sum[2]+=b;}if(r<130&&g>100&&b>150&&b-r>90)blue++;}if(warm>d.length/4*.02&&blue>d.length/4*.05){$('materialMode').value='color';$('metalColor').value='#'+sum.map(v=>Math.round(v/warm).toString(16).padStart(2,'0')).join('');$('colorTolerance').value=80;}else $('materialMode').value='gray';showMaterialSettings();}
 function maxNumber(a,b){return Math.max(a,b);}
 function chooseView(value){view=value;document.querySelectorAll('[data-view]').forEach(t=>t.classList.toggle('active',t.dataset.view===value));draw();}
 function renderThumbnail(){let c=$('sourceThumb');c.width=280;c.height=Math.max(1,Math.round(280*source.height/source.width));let ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(source,0,0,c.width,c.height);}
 function useSample(ix,iy){let d=source.getContext('2d',{willReadFrequently:true}).getImageData(ix,iy,1,1).data,a=d[3]/255,v=[0,1,2].map(k=>Math.round(d[k]*a+255*(1-a)));$('metalColor').value='#'+v.map(k=>k.toString(16).padStart(2,'0')).join('');$('materialMode').value='color';showMaterialSettings();pickingMetal=false;$('preview').style.cursor='';chooseView('vector');schedule();}
 function sampleOriginalColor(e){if(!pickingMetal||view!=='original')return;let canvas=$('preview'),rect=canvas.getBoundingClientRect(),xx=(e.clientX-rect.left)*canvas.width/rect.width,yy=(e.clientY-rect.top)*canvas.height/rect.height,s=Math.min(800/source.width,540/source.height),x=(900-source.width*s)/2,y=(650-source.height*s)/2,ix=Math.floor((xx-x)/s),iy=Math.floor((yy-y)/s);if(ix<0||iy<0||ix>=source.width||iy>=source.height){setStatus('请点击图案内的金属区域取色。','warn');return;}useSample(ix,iy);}
-async function loadFile(file){if(!file)return;if(file.size>40*1024*1024){setStatus('图片超过 40 MB，请先缩小或裁切。','error');return;}let id=++request;disable(true);result=null;geometry=null;setStatus('正在读取图片…');let url=URL.createObjectURL(file);try{let img=new Image();img.src=url;await img.decode();if(id!==request)return;if(img.width*img.height>40000000)throw Error('原图超过 4000 万像素，请先缩小。');source.width=img.width;source.height=img.height;source.getContext('2d').drawImage(img,0,0);imageName=file.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N}_-]/gu,'_').slice(0,80)||'fss_pattern';renderThumbnail();$('filename').textContent=file.name+' · '+img.width+' × '+img.height+' px';resetCrop();autoSelectMetal();schedule();}catch(e){if(id===request){disable(false);setStatus('无法读取该图片：'+e.message,'error');draw();}}finally{URL.revokeObjectURL(url);}}
+async function loadFile(file){if(!file)return;if(file.size>40*1024*1024){setStatus('图片超过 40 MB，请先缩小或裁切。','error');return;}let id=++request;disable(true);result=null;geometry=null;setStatus('正在读取图片…');let url=URL.createObjectURL(file);try{const isSVG=/\.svg$/i.test(file.name)||file.type==='image/svg+xml';const newSvgText=isSVG?await file.text():null;if(newSvgText&&(!/<svg[\s>]/i.test(newSvgText)||newSvgText.length>3000000))throw Error('SVG 文件无效或体积过大。');let img=new Image();img.src=url;await img.decode();if(id!==request)return;if(img.width*img.height>40000000)throw Error('原图超过 4000 万像素，请先缩小。');source.width=img.width;source.height=img.height;source.getContext('2d').drawImage(img,0,0);imageName=file.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N}_-]/gu,'_').slice(0,80)||'fss_pattern';renderThumbnail();$('filename').textContent=file.name+' · '+img.width+' × '+img.height+' px';resetCrop();autoSelectMetal();svgText=newSvgText;if(isSVG){$('vectorMode').value='cadsvg';showVectorMode();}schedule();}catch(e){if(id===request){disable(false);setStatus('无法读取该图片：'+e.message,'error');draw();}}finally{URL.revokeObjectURL(url);}}
 $('file').onchange=e=>loadFile(e.target.files[0]);for(let ev of ['dragenter','dragover'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('drag');});for(let ev of ['dragleave','drop'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('drag');});$('drop').addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));$('demo').onclick=demo;$('fullCrop').onclick=()=>{resetCrop();schedule();};$('auto').onclick=()=>{try{let d=prep();$('threshold').value=FSSCore.otsu(d.data);schedule();}catch(e){setStatus(e.message,'error');}};
-for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='symmetryThreshold')$('symmetryThresholdValue').textContent=$('symmetryThreshold').value+'%';if(id==='vectorMode')$('fitSetting').classList.toggle('hidden',$('vectorMode').value==='exact');if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击黄色金属区域。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
+function showVectorMode(){const m=$('vectorMode').value;const notes={potrace:'Potrace 风格：内置路径追踪、角点保护和二次 Bézier 平滑。非官方 Potrace，曲线以采样线段导出。',marching:'Marching Squares：利用图像灰度或颜色连续场计算亚像素等值线，适合斜边及抗锯齿图像。',ransac:'RANSAC + 直线、圆弧：对连续点进行确定性鲁棒线段识别，优先保留真实圆弧和金属间隙。',sdf:'Level Set / SDF：用 8 邻域距离变换构造连续距离场并提取零等值线；细小结构可能触发保守回退。',cadsvg:'参数化 CAD / SVG：SVG 上传时直接解析矢量矩形、圆和闭合路径；PNG/JPG 则识别圆、矩形和线段。SVG 曲线会受采样精度限制。',hybrid:'旧版智能混合重建：采用斜线修复及圆弧识别。',fit:'旧版自适应直线拟合：以像素轮廓进行局部修复。',exact:'原始精确像素边界，不进行曲线重建。'};$('modeInfo').textContent=notes[m];$('sdfSetting').classList.toggle('hidden',m!=='sdf');$('fitSetting').classList.toggle('hidden',m==='exact');$('sdfValue').textContent=$('sdfSmoothing').value+'%';}
+for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='symmetryThreshold')$('symmetryThresholdValue').textContent=$('symmetryThreshold').value+'%';if(id==='vectorMode'||id==='sdfSmoothing')showVectorMode();if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击黄色金属区域。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
 $('editToggle').onclick=()=>{
  if(!result||!geometry||busy)return;
  editorOn=!editorOn;editSelected=null;connectStart=null;
@@ -928,5 +1432,5 @@ document.addEventListener('keydown',event=>{
   event.preventDefault();selectedEditAction(editSelected.kind==='vertex'?'removeVertex':'removeSegment');
  }
 });
-$('dimensionMode').onchange=draw;demo();
+$('dimensionMode').onchange=draw;showVectorMode();demo();
 </script></body></html>
