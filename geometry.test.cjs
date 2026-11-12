@@ -254,7 +254,7 @@ console.log('PASS: exhaustive 65,535 bitmaps; yellow metal/cyan dielectric and f
  const shape=C.scale(hybrid,{width:30,height:30,reference:'image',center:true});
  const cad=C.dxf(shape);
  assert(cad.includes('LWPOLYLINE'));
- if(hybrid.hybrid.arcs>0)assert(cad.includes('\r\n42\r\n'));
+ assert(cad.includes('\r\n42\r\n'));
  const lines=C.dxf(shape,{entity:'LINE'});
  assert(!lines.includes('\r\n42\r\n'));
  const distortion=C.scale(hybrid,{width:40,height:30,reference:'image',center:true});

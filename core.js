@@ -362,7 +362,7 @@ function circularSpan(p,from,to,tol){
  const chord=Math.hypot(a[0]-b[0],a[1]-b[1]);
  const sag=circle.radius*(1-Math.cos(Math.abs(sweep)/2));
  if(chord<2.7||sag<.7||circle.radius*Math.abs(sweep)<4.5)return null;
- return {kind:'arc',start:a.slice(),end:b.slice(),center:circle.center,sweep};
+ return normalizeCircularArc({kind:'arc',start:a.slice(),end:b.slice(),center:circle.center,sweep});
 }
 
 function leastSquaresCircle(points){
@@ -392,6 +392,17 @@ function fullCircleCurves(points){
  const at=i=>[c.center[0]+c.radius*Math.cos(begin+sign*i*Math.PI/2),c.center[1]+c.radius*Math.sin(begin+sign*i*Math.PI/2)];
  for(let i=0;i<4;i++)segments.push({kind:'arc',start:at(i),end:at(i+1),center:c.center.slice(),sweep:sign*Math.PI/2});
  return segments;
+}
+
+
+function normalizeCircularArc(segment){
+ if(segment.kind!=='arc')return segment;
+ const [ax,ay]=segment.start,[bx,by]=segment.end,dx=bx-ax,dy=by-ay,chord=Math.hypot(dx,dy);
+ const halfTangent=Math.tan(segment.sweep/2);
+ if(chord<1e-8||Math.abs(halfTangent)<1e-8)return segment;
+ // A bulge encodes endpoints + sweep. Derive exactly that circle for preview.
+ const side=chord/(2*halfTangent);
+ return {...segment,center:[(ax+bx)/2-dy/chord*side,(ay+by)/2+dx/chord*side]};
 }
 
 function sampleCurves(curves){
