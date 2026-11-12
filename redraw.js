@@ -227,10 +227,11 @@ function snappedLoop(l,angleTolerance=7){
 }
 function symmetry(model,axis,threshold=1.5){
  if(!['vertical','horizontal','rotation'].includes(axis))throw Error('请选择正确的对称关系');
- const next=clone(model),all=next.loops.flatMap(l=>l.points),box=[Math.min(...all.map(p=>p[0])),Math.min(...all.map(p=>p[1])),Math.max(...all.map(p=>p[0])),Math.max(...all.map(p=>p[1]))];
+ const next=clone(model),box=[Infinity,Infinity,-Infinity,-Infinity];for(const l of next.loops)for(const p of l.points){box[0]=Math.min(box[0],p[0]);box[1]=Math.min(box[1],p[1]);box[2]=Math.max(box[2],p[0]);box[3]=Math.max(box[3],p[1]);}
  const cx=(box[0]+box[2])/2,cy=(box[1]+box[3])/2,reflect=p=>axis==='vertical'?[2*cx-p[0],p[1]]:axis==='horizontal'?[p[0],2*cy-p[1]]:[2*cx-p[0],2*cy-p[1]];
  let pairs=0;
  for(const l of next.loops){
+  if(l.points.length>1600)throw Error('对称约束要求先简化超过1600个顶点的轮廓');
   const matched=new Set();
   for(let i=0;i<l.points.length;i++){
    if(matched.has(i))continue;
@@ -252,10 +253,30 @@ function symmetry(model,axis,threshold=1.5){
  }
  return {model:next,pairs};
 }
+
+function circleRegularize(loop,tolerance=1.25){
+ if(loop.points.length<12||loop.bulges.some(b=>Math.abs(b)>.00001))return loop;
+ const pts=loop.points,n=pts.length;
+ let lo=[Infinity,Infinity],hi=[-Infinity,-Infinity];
+ for(const p of pts){lo[0]=Math.min(lo[0],p[0]);lo[1]=Math.min(lo[1],p[1]);hi[0]=Math.max(hi[0],p[0]);hi[1]=Math.max(hi[1],p[1]);}
+ const w=hi[0]-lo[0],h=hi[1]-lo[1];
+ if(Math.min(w,h)<7||Math.abs(w-h)>Math.max(2.2,tolerance*1.7))return loop;
+ const cx=(lo[0]+hi[0])/2,cy=(lo[1]+hi[1])/2;
+ let radius=0;for(const p of pts)radius+=Math.hypot(p[0]-cx,p[1]-cy);radius/=n;
+ let error=0,maxError=0;for(const p of pts){const d=Math.hypot(p[0]-cx,p[1]-cy)-radius;error+=d*d;maxError=Math.max(maxError,Math.abs(d));}
+ if(Math.sqrt(error/n)>Math.max(.65,tolerance*.63)||maxError>Math.max(1.2,tolerance*1.2))return loop;
+ const sign=Math.sign(C.area(pts)),start=Math.atan2(pts[0][1]-cy,pts[0][0]-cx);
+ if(!sign)return loop;
+ const points=Array.from({length:4},(_,i)=>{
+  const angle=start+sign*Math.PI/2*i;return [cx+radius*Math.cos(angle),cy+radius*Math.sin(angle)];
+ });
+ return {...loop,points,bulges:points.map(()=>sign*Math.tan(Math.PI/8))};
+}
+
 function auto(model,reference,opt={}){
  let current=clone(model),repaired=0,skipped=0;
  for(let k=0;k<current.loops.length;k++){
-  const initial=current.loops[k],candidate=snappedLoop(simplifyLoop(initial,clamp(Number(opt.tolerance)||1.25,.3,2)),clamp(Number(opt.angleTolerance)||7,2,15));
+  const initial=current.loops[k],candidate=snappedLoop(circleRegularize(simplifyLoop(initial,clamp(Number(opt.tolerance)||1.25,.3,2)),clamp(Number(opt.tolerance)||1.25,.3,2)),clamp(Number(opt.angleTolerance)||7,2,15));
   const proposal=clone(current);proposal.loops[k]=candidate;
   const check=evaluate(proposal,reference,{enforcePixel:true,skipMask:!!opt.skipMask});
   if(check.ok){if(candidate.points.length!==initial.points.length||candidate.points.some((p,i)=>dist(p,initial.points[i])>1e-6)){repaired++;current=proposal;}}
