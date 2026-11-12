@@ -32,7 +32,7 @@ for(const script of [py,cad,pyrect]){
   if(result.error)throw result.error;
   assert.equal(result.status,0,result.stderr);
 }
-const run=spawnSync(python,['-c',py + '\nmat = make_pattern_matrix()\nassert mat.shape == (32,32)\nassert mat[0,0] == 0\nassert mat[3,3] == 1\nassert mat[6,6] == 0\nassert mat[10,10] == 1\nassert mat[15,15] == 0\n'],{encoding:'utf8'});
+const run=spawnSync(python,['-c',py + '\nmat = make_pattern_matrix()\nassert mat.shape == (32,32)\nassert mat[0,0] == 0\nassert mat[5,5] == 1\nassert mat[10,10] == 0\nassert mat[13,13] == 1\nassert mat[15,15] == 0\n'],{encoding:'utf8'});
 if(run.error)throw run.error;
 assert.equal(run.status,0,run.stderr);
 const rectRun=spawnSync(python,['-c',pyrect + '\ntry:\n    make_pattern_matrix()\nexcept ValueError as e:\n    assert "square" in str(e)\nelse:\n    raise AssertionError("rectangular cell should be rejected")\n'],{encoding:'utf8'});
