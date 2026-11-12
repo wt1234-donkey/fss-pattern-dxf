@@ -4,6 +4,21 @@
 
 #codeText{display:block;box-sizing:border-box;width:100%;min-height:210px;max-height:360px;resize:vertical;padding:10px;font-size:11px;line-height:1.45;font-family:ui-monospace,Consolas,monospace;white-space:pre;tab-size:4}
 .code-actions{margin:8px 0;display:flex;gap:8px}.code-actions button{min-width:0;flex:1}
+
+/* Independent reference-guided geometry redraw workspace */
+.redraw-panel{padding:18px 20px;border-top:1px solid var(--line);background:#fafdff}
+.redraw-panel h2{margin-bottom:8px}
+.redraw-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.redraw-controls .btn{flex:none;font-size:12px}
+.redraw-controls select{max-width:240px;width:auto;min-width:135px}
+.redraw-compact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.redraw-panel label>span{display:block;color:#48606c;font-weight:600;font-size:12px;margin-bottom:4px}
+.redraw-panel label input[type=number],.redraw-panel label select{width:100%}
+.redraw-view{background:#eaf2f5;border:1px solid #ccdce1;border-radius:8px;padding:10px;margin:12px 0;overflow:hidden}
+.redraw-view canvas{display:block;width:100%;max-height:none;cursor:crosshair;touch-action:none}
+.redraw-status{font-size:12px;color:var(--teal);padding:8px 0;white-space:pre-wrap}
+.redraw-status.error{color:#ab4324}
+@media(max-width:720px){.redraw-compact{grid-template-columns:1fr 1fr}.redraw-controls select{min-width:110px}.redraw-panel{padding:12px}}
 </style></head><body><header><div><strong>▦ Pattern Lab</strong> <span>／ 二维电磁图案工作台</span></div><div class="tag">浏览器内处理 · 无需安装</div></header><main><h1>从拓扑图片，到可用的 CAD 轮廓。</h1><p class="lead">上传二维 FSS 图案 → 确定尺寸基准 → 导出毫米单位的 DXF。保留孔洞、细缝与独立金属岛。</p><div class="layout"><aside class="card">
 <div class="section"><h2><span class="step">01</span>输入图案</h2><input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/svg+xml,.svg"><label for="file" class="upload" id="drop"><div style="font-size:26px;color:var(--teal)">↥</div><strong>点击选择图片，或拖入此处</strong><span class="small">PNG / JPG / WebP / BMP / SVG</span></label><p id="filename" class="small" style="margin-top:10px;overflow-wrap:anywhere">当前为示例：带孔方环</p><div class="source-photo"><canvas id="sourceThumb" width="280" height="160" aria-label="上传图片预览，点击金属区域取色"></canvas><p class="small">原始图片预览 · 点击金属区域可直接取色</p><button id="showOriginal" class="btn wide" type="button">查看完整原图并取色</button></div><button id="demo" class="btn wide" style="margin-top:10px">载入带孔方环示例</button><details class="crop"><summary class="small">裁切图片（去掉坐标轴和标注）</summary><div class="row"><label class="field"><span>左侧 x / px</span><input id="cropX" type="number" min="0" value="0" step="1"></label><label class="field"><span>顶部 y / px</span><input id="cropY" type="number" min="0" value="0" step="1"></label></div><div class="row"><label class="field"><span>裁切宽 / px</span><input id="cropW" type="number" min="1" value="400" step="1"></label><label class="field"><span>裁切高 / px</span><input id="cropH" type="number" min="1" value="400" step="1"></label></div><button id="fullCrop" class="btn wide">恢复整张图片</button><p class="small" style="margin-top:7px">原点位于图片左上角。输入原图像素坐标；预览中浅色区域为裁切外部。</p></details></div>
 <div class="section"><h2><span class="step">02</span>识别金属区域</h2><label class="field"><span>识别方式</span><select id="materialMode"><option value="gray">黑白 / 灰度阈值</option><option value="color">按金属颜色识别</option></select></label><div id="graySettings"><label class="field"><span>图案极性</span><select id="polarity"><option value="dark">黑色 / 深色区域是金属</option><option value="light">白色 / 浅色区域是金属</option></select></label><label class="field"><span>二值化阈值 <b id="thresholdValue">127</b></span><input id="threshold" type="range" min="0" max="255" value="127"></label><button id="auto" class="btn wide">自动计算阈值</button></div><div id="colorSettings" class="hidden"><label class="field"><span>金属取样颜色</span><input id="metalColor" type="color" value="#ffff00" style="height:40px;width:100%;border:1px solid #cdd9df;border-radius:6px;cursor:pointer"></label><button id="pickMetal" class="btn wide">在原始图片上点击金属取色</button><label class="field"><span>颜色容差 <b id="colorToleranceValue">80</b> / 255</span><input id="colorTolerance" type="range" min="0" max="255" value="80"></label><p class="small">靠近所选颜色的像素作为金属；蓝色基板会保留为非金属。调节容差时对照二值预览。</p></div><label class="field"><span>轮廓生成</span><select id="vectorMode"><option value="ransac" selected>RANSAC + 直线、圆弧拟合（推荐）</option><option value="potrace">Potrace 风格 Bézier 矢量化</option><option value="marching">Marching Squares 亚像素轮廓</option><option value="sdf">Level Set / SDF 距离场轮廓</option><option value="cadsvg">参数化 CAD / SVG 几何</option><option value="hybrid">智能混合几何重建（兼容）</option><option value="fit">自适应斜直线去锯齿（兼容）</option><option value="exact">精确像素边界</option></select></label><label class="field" id="fitSetting"><span>拟合 / 简化容差</span><select id="fitTolerance"><option value="0.8">轻度</option><option value="1.25" selected>标准</option><option value="1.5">较强</option><option value="2">很强</option></select></label><p class="small">五种方法各自处理轮廓；不符合拓扑和细缝保护要求时自动回退。Potrace 风格是本站独立实现的 Bézier 重建算法，不是官方 Potrace 软件。</p><label class="field"><span>对称辅助直线修复</span><select id="symmetryMode"><option value="auto" selected>自动检测并优先对称修正（推荐）</option><option value="observe">仅检测，不修改轮廓</option><option value="off">关闭对称修正</option></select></label><label class="field"><span>近似对称吻合度阈值 <b id="symmetryThresholdValue">94%</b></span><input type="range" id="symmetryThreshold" min="85" max="99" step="1" value="94"></label><div class="note" id="modeInfo" aria-live="polite">RANSAC：检测连续直线并融合真实圆弧，尽量保留 FSS 尖角与狭缝。</div><label class="field hidden" id="sdfSetting"><span>Level Set / SDF 平滑强度 <b id="sdfValue">25%</b></span><input id="sdfSmoothing" type="range" min="0" max="70" step="5" value="25"></label><p id="advancedSummary" class="small" style="margin-top:8px" aria-live="polite">导入图片后显示当前算法的实际生成状态。</p><p class="small" id="symmetryInfo" aria-live="polite">导入图案后分别检测左右、上下和中心对称。只有匹配可靠且通过几何保护检查时才使用镜像直线。</p><div class="row"><label class="field"><span>去除小区域 / px²</span><input id="minPixels" type="number" min="1" max="1000000" step="1" value="1"></label><label class="field"><span>最大处理边长</span><select id="resolution"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option></select></label></div><p class="small">默认不删除小金属岛，孔洞始终保留。分辨率降低可能改变细线；尺寸信息将显示每像素代表的实际长度。</p></div>
@@ -19,7 +34,29 @@
 <textarea id="codeText" readonly spellcheck="false" aria-label="导入图案的 Python 源代码" placeholder="生成后在这里预览代码，也可复制或下载。"></textarea>
 <p class="small" id="codeStatus" role="status" aria-live="polite">等待有效闭合轮廓。</p>
 </div></aside>
-<section><div class="card"><div class="toolbar"><div class="tabs"><button class="btn" data-view="original">原始图片</button><button class="btn" data-view="binary">二值图案</button><button class="btn active" data-view="vector">DXF 轮廓</button></div><span class="badge">LIVE PREVIEW</span></div><div class="view"><canvas id="preview" width="800" height="620" aria-label="拓扑图案及尺寸预览"></canvas></div><div class="legend"><span><i class="dot" style="background:#008b84"></i>外轮廓</span><span><i class="dot" style="background:#df8357"></i>内部孔洞</span><span id="dimensions">20 × 20 mm</span></div><div class="editor-panel"><h2>手动点线编辑 <span class="badge">闭合轮廓保护</span></h2><p class="editor-hint">先自动生成轮廓，再开启编辑。选中顶点可删除并自动连接邻点；选中线段可删除形成缺口，再通过点击两个端点重新连接。同一闭合轮廓上的两点也能直接连线，代替它们之间较短的一段锯齿路径。</p><div class="editor-actions"><button id="editToggle" class="btn" type="button" disabled>开启编辑</button><select id="editMode" aria-label="手动编辑工具" disabled><option value="select">选择顶点 / 线段</option><option value="connect">连接两个顶点</option></select><button id="editDeleteVertex" class="btn" type="button" disabled>删除选中顶点</button><button id="editDeleteEdge" class="btn" type="button" disabled>删除选中线段</button><button id="editInsertVertex" class="btn" type="button" disabled>在线段中点加顶点</button><button id="editZoomOut" class="btn" type="button" disabled>− 缩小</button><button id="editZoomIn" class="btn" type="button" disabled>+ 放大</button><button id="editZoomReset" class="btn" type="button" disabled>适应视图</button><button id="editUndo" class="btn" type="button" disabled>撤销</button><button id="editRedo" class="btn" type="button" disabled>重做</button><button id="editReset" class="btn" type="button" disabled>恢复自动轮廓</button></div><p id="editSelection" class="editor-hint" role="status" aria-live="polite">生成轮廓后即可开启编辑。</p><p id="editWarning" class="editor-warning" aria-live="polite"></p></div><div class="stats"><div><b id="outerCount">—</b><span>金属外轮廓</span></div><div><b id="holeCount">—</b><span>内部孔洞</span></div><div><b id="pointCount">—</b><span>导出顶点</span></div><div><b id="fill">—</b><span>图片金属填充率</span></div></div><div id="status" class="status" role="status" aria-live="polite">准备识别…</div><div class="measure"><h2>轮廓线段尺寸</h2><p class="small">数值由导出 DXF 的顶点坐标计算，单位 mm；点击预览中的边或表格行可查看具体线段。</p><div class="measure-controls"><label class="small" for="dimensionMode">图中标注</label><select id="dimensionMode"><option value="selected">选中线段</option><option value="all">全部线段</option><option value="none">隐藏</option></select><button id="segmentCsv" class="btn" type="button">下载全部线段 CSV</button></div><p id="selectedInfo" class="small">等待轮廓…</p><div class="measure-table"><table><thead><tr><th>编号</th><th>轮廓</th><th>起点 (x,y)</th><th>终点 (x,y)</th><th>长度 / mm</th></tr></thead><tbody id="segmentsBody"></tbody></table></div><p id="segmentTotal" class="small" style="margin-top:6px"></p></div></div><div class="card help"><h2>在 CST 中使用</h2><ol><li>将工程长度单位设为 <b>mm</b>，选择 DXF 文件进行导入；不同版本的导入菜单可能不同。</li><li>检查导入后的宽高和 XY 平面方向。默认导出的是二维闭合边界，可按工程需要构面和赋予金属厚度。</li><li>若导入为曲线，先按外轮廓构面，再扣除 <b>METAL_HOLE</b> 内轮廓围成的区域；嵌套金属岛应分别保留。</li><li><b>CELL_GUIDE</b> 仅是参考框，不应作为金属；根据实际模型设置介质、周期边界和端口。</li></ol><div class="note">尺寸示例：400 × 400 像素的单元图片设为 20 × 20 mm，200 像素的金属长度对应 10 mm。选择“图案外接框”时，留白不参与比例计算。</div><details><summary>关于精度、孔洞与适用范围</summary><p>彩色图可选择金属颜色，黄色金属与蓝色介质图会自动切换为按颜色识别；也可点击原图取样并调节颜色容差。默认对二值轮廓进行自适应逐段直线拟合，让斜边不再沿像素方格走台阶。局部细节无法安全拟合时保留原边界，不影响其余直线。保留外接尺寸并对导出形状重新栅格化检查金属岛与孔洞数量；允许少量边界像素改变。切换到“精确像素边界”可以完全按二值图逐格导出。拟合不会恢复原始 CAD 的精确坐标，不做圆弧识别；提高输入分辨率仍有助于精度。若有小于数像素的狭缝、尖端，请对照预览并使用像素模式验证。</p><p>孔洞由边界绕向识别。外轮廓为逆时针，孔洞为顺时针，DXF 的闭合标记已设置；孔洞图层本身并不等于 CST 中已执行布尔扣除。像素仅在角点相接时会输出相接的独立闭合区域并提示，建议在源图中改成明确的连接或间隙。</p><p>所有识别与 DXF 生成都在当前浏览器内完成，无需 AI 接口，也不会把上传图片发送到服务器。本工具不计算 S 参数或验证电磁性能。</p></details></div></section></div><p class="foot">Pattern Lab · Raster → closed contours → physical scale → DXF</p></main>
+<section><div class="card"><div class="toolbar"><div class="tabs"><button class="btn" data-view="original">原始图片</button><button class="btn" data-view="binary">二值图案</button><button class="btn active" data-view="vector">DXF 轮廓</button></div><span class="badge">LIVE PREVIEW</span></div><div class="view"><canvas id="preview" width="800" height="620" aria-label="拓扑图案及尺寸预览"></canvas></div><div class="legend"><span><i class="dot" style="background:#008b84"></i>外轮廓</span><span><i class="dot" style="background:#df8357"></i>内部孔洞</span><span id="dimensions">20 × 20 mm</span></div><div class="editor-panel"><h2>手动点线编辑 <span class="badge">闭合轮廓保护</span></h2><p class="editor-hint">先自动生成轮廓，再开启编辑。选中顶点可删除并自动连接邻点；选中线段可删除形成缺口，再通过点击两个端点重新连接。同一闭合轮廓上的两点也能直接连线，代替它们之间较短的一段锯齿路径。</p><div class="editor-actions"><button id="editToggle" class="btn" type="button" disabled>开启编辑</button><select id="editMode" aria-label="手动编辑工具" disabled><option value="select">选择顶点 / 线段</option><option value="connect">连接两个顶点</option></select><button id="editDeleteVertex" class="btn" type="button" disabled>删除选中顶点</button><button id="editDeleteEdge" class="btn" type="button" disabled>删除选中线段</button><button id="editInsertVertex" class="btn" type="button" disabled>在线段中点加顶点</button><button id="editZoomOut" class="btn" type="button" disabled>− 缩小</button><button id="editZoomIn" class="btn" type="button" disabled>+ 放大</button><button id="editZoomReset" class="btn" type="button" disabled>适应视图</button><button id="editUndo" class="btn" type="button" disabled>撤销</button><button id="editRedo" class="btn" type="button" disabled>重做</button><button id="editReset" class="btn" type="button" disabled>恢复自动轮廓</button></div><p id="editSelection" class="editor-hint" role="status" aria-live="polite">生成轮廓后即可开启编辑。</p><p id="editWarning" class="editor-warning" aria-live="polite"></p></div><div class="redraw-panel" id="redrawPanel">
+<h2>参考图辅助重绘 · 几何规则化 <span class="badge">线段 / 原生圆弧</span></h2>
+<p class="editor-hint">将低分辨率原图作为半透明参考底图，自动对斜线进行规则化，或通过选点连接把像素台阶替换为真实直线和圆弧。重绘结果不会自动覆盖 DXF；点击“应用”并通过几何检查后才替换导出轮廓。</p>
+<div class="redraw-controls"><button class="btn primary" type="button" id="redrawStart">从当前图案开始智能重绘</button><button class="btn" id="redrawAuto" type="button" disabled>再次自动规则化</button><button class="btn" id="redrawReset" type="button" disabled>恢复初始草稿</button></div>
+<div class="redraw-compact">
+<label><span>重绘工具</span><select id="redrawTool" disabled><option value="move">选点 / 拖动顶点</option><option value="line">选边 → 直线</option><option value="arc">选边 → 圆弧</option><option value="span-line">选两点 → 直线替换</option><option value="span-arc">选两点 → 圆弧替换</option></select></label>
+<label><span>拟合强度（像素）</span><select id="redrawTolerance"><option value=".7">保守 · 0.7</option><option value="1.25" selected>标准 · 1.25</option><option value="1.8">较强 · 1.8</option></select></label>
+<label><span>选中圆弧弯曲度（−1～1）</span><input id="redrawArcBulge" type="number" min="-1" max="1" step=".025" value="0" disabled></label>
+</div>
+<div class="redraw-controls"><button id="redrawAddVertex" class="btn" type="button" disabled>选中边插点</button><button id="redrawDeleteVertex" class="btn" type="button" disabled>删除选中顶点</button><button id="redrawUndo" class="btn" type="button" disabled>撤销</button><button id="redrawRedo" class="btn" type="button" disabled>重做</button></div>
+<div class="redraw-compact">
+<label><span>对称规则</span><select id="redrawSymmetry"><option value="none">不强制对称</option><option value="vertical">左右镜像</option><option value="horizontal">上下镜像</option><option value="rotation">180° 中心对称</option></select></label>
+<label><span>镜像端点容差（px）</span><input id="redrawSymmetryTolerance" type="number" min=".1" max="8" step=".25" value="1.5"></label>
+<label><span>背景透明度</span><input id="redrawOpacity" type="range" min="0" max="100" value="45"></label>
+</div>
+<div class="redraw-controls"><button id="redrawSymmetryApply" class="btn" type="button" disabled>按对称约束规则化</button><label style="min-width:170px;color:#47606d;font-size:12px">放大倍率 <input type="range" id="redrawZoom" min="1" max="8" step=".5" value="1"></label></div>
+<div class="redraw-view"><canvas id="redrawCanvas" width="900" height="620" aria-label="参考图辅助重绘；选择并拖动轮廓节点与圆弧"></canvas></div>
+<p class="editor-hint" id="redrawSelection" aria-live="polite">先点击开始智能重绘。</p>
+<p class="editor-hint">操作：选两点可将二者之间较短的旧轮廓替换为直线或圆弧；拖动顶点调整几何；选中圆弧可输入弯曲度。鼠标滚轮缩放，按 Alt 拖动画布平移。黄色标记表示选中几何。</p>
+<label class="check"><input type="checkbox" id="redrawAllowDeviation">允许重绘结果明显偏离原图像素（超过 2% 时需主动勾选；仍禁止断线、自交和孔洞改变）</label>
+<div class="redraw-controls"><button class="btn primary" id="redrawApply" type="button" disabled>应用重绘轮廓并更新 DXF</button><button class="btn" id="redrawExport" type="button" disabled>保存重绘草稿 JSON</button></div>
+<div class="redraw-status" id="redrawStatus" role="status" aria-live="polite">等待图片完成初始识别。</div>
+</div><div class="stats"><div><b id="outerCount">—</b><span>金属外轮廓</span></div><div><b id="holeCount">—</b><span>内部孔洞</span></div><div><b id="pointCount">—</b><span>导出顶点</span></div><div><b id="fill">—</b><span>图片金属填充率</span></div></div><div id="status" class="status" role="status" aria-live="polite">准备识别…</div><div class="measure"><h2>轮廓线段尺寸</h2><p class="small">数值由导出 DXF 的顶点坐标计算，单位 mm；点击预览中的边或表格行可查看具体线段。</p><div class="measure-controls"><label class="small" for="dimensionMode">图中标注</label><select id="dimensionMode"><option value="selected">选中线段</option><option value="all">全部线段</option><option value="none">隐藏</option></select><button id="segmentCsv" class="btn" type="button">下载全部线段 CSV</button></div><p id="selectedInfo" class="small">等待轮廓…</p><div class="measure-table"><table><thead><tr><th>编号</th><th>轮廓</th><th>起点 (x,y)</th><th>终点 (x,y)</th><th>长度 / mm</th></tr></thead><tbody id="segmentsBody"></tbody></table></div><p id="segmentTotal" class="small" style="margin-top:6px"></p></div></div><div class="card help"><h2>在 CST 中使用</h2><ol><li>将工程长度单位设为 <b>mm</b>，选择 DXF 文件进行导入；不同版本的导入菜单可能不同。</li><li>检查导入后的宽高和 XY 平面方向。默认导出的是二维闭合边界，可按工程需要构面和赋予金属厚度。</li><li>若导入为曲线，先按外轮廓构面，再扣除 <b>METAL_HOLE</b> 内轮廓围成的区域；嵌套金属岛应分别保留。</li><li><b>CELL_GUIDE</b> 仅是参考框，不应作为金属；根据实际模型设置介质、周期边界和端口。</li></ol><div class="note">尺寸示例：400 × 400 像素的单元图片设为 20 × 20 mm，200 像素的金属长度对应 10 mm。选择“图案外接框”时，留白不参与比例计算。</div><details><summary>关于精度、孔洞与适用范围</summary><p>彩色图可选择金属颜色，黄色金属与蓝色介质图会自动切换为按颜色识别；也可点击原图取样并调节颜色容差。默认对二值轮廓进行自适应逐段直线拟合，让斜边不再沿像素方格走台阶。局部细节无法安全拟合时保留原边界，不影响其余直线。保留外接尺寸并对导出形状重新栅格化检查金属岛与孔洞数量；允许少量边界像素改变。切换到“精确像素边界”可以完全按二值图逐格导出。拟合不会恢复原始 CAD 的精确坐标，不做圆弧识别；提高输入分辨率仍有助于精度。若有小于数像素的狭缝、尖端，请对照预览并使用像素模式验证。</p><p>孔洞由边界绕向识别。外轮廓为逆时针，孔洞为顺时针，DXF 的闭合标记已设置；孔洞图层本身并不等于 CST 中已执行布尔扣除。像素仅在角点相接时会输出相接的独立闭合区域并提示，建议在源图中改成明确的连接或间隙。</p><p>所有识别与 DXF 生成都在当前浏览器内完成，无需 AI 接口，也不会把上传图片发送到服务器。本工具不计算 S 参数或验证电磁性能。</p></details></div></section></div><p class="foot">Pattern Lab · Raster → closed contours → physical scale → DXF</p></main>
 <script id="core-code">/* Pure raster-to-CAD geometry. No external dependencies. */
 (function(root){
 'use strict';
@@ -1029,6 +1066,522 @@ const api={generate,contoursIso,distanceChamfer,potraceStyle,marching,sdfContour
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else root.FSSAdvanced=api;
 })(typeof self!=='undefined'?self:globalThis);
+</script><script id="redraw-code">/* Reference-guided FSS redraw: editable closed lines/arcs with explicit geometry validation. */
+(function(root){
+'use strict';
+const C=root.FSSCore||(typeof require==='function'?require('./core.js'):null);
+const A=root.FSSAdvanced||(typeof require==='function'?require('./advanced.js'):null);
+if(!C||!A)throw Error('FSSCore and FSSAdvanced must load before FSSRedraw');
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)),dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+const cp=p=>[p[0],p[1]],cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+function clone(model){return {loops:model.loops.map(l=>({hole:!!l.hole,points:l.points.map(cp),bulges:l.bulges.slice()}))};}
+function fromResult(result){
+ if(!result?.loops?.length)throw Error('请先识别有效的闭合轮廓');
+ const loops=result.loops.map(l=>{
+  if(l.open)throw Error('请先闭合原图中的全部轮廓');
+  const validCurves=l.curves?.length>=3&&l.curves.every((s,i,q)=>s.start&&s.end&&dist(s.end,q[(i+1)%q.length].start)<1e-5);
+  const points=validCurves?l.curves.map(s=>cp(s.start)):l.points.map(cp);
+  const bulges=validCurves?l.curves.map(s=>s.kind==='arc'?Math.tan(s.sweep/4):0):points.map(()=>0);
+  if(points.length<3)throw Error('轮廓顶点不足');
+  return {hole:!!l.hole,points,bulges};
+ });
+ return {loops};
+}
+function arc(a,b,bulge){
+ if(!Number.isFinite(bulge)||Math.abs(bulge)<1e-7||Math.abs(bulge)>1)throw Error('圆弧参数需为 -1 到 1，且不可为无穷');
+ const d=dist(a,b);if(d<1e-5)throw Error('圆弧端点不能重合');
+ const m=[(a[0]+b[0])/2,(a[1]+b[1])/2],h=d*(1-bulge*bulge)/(4*bulge);
+ const center=[m[0]-(b[1]-a[1])/d*h,m[1]+(b[0]-a[0])/d*h];
+ return {kind:'arc',start:cp(a),end:cp(b),center,sweep:4*Math.atan(bulge)};
+}
+function sampleArc(seg,maxChordError=.18){
+ const [cx,cy]=seg.center,a=Math.atan2(seg.start[1]-cy,seg.start[0]-cx),radius=dist(seg.start,seg.center);
+ const radStep=2*Math.acos(clamp(1-maxChordError/radius,-1,1));
+ const pieces=clamp(Math.ceil(Math.abs(seg.sweep)/Math.min(.14,radStep||.14)),2,256);
+ const out=[];
+ for(let k=1;k<pieces;k++){const t=a+seg.sweep*k/pieces;out.push([cx+radius*Math.cos(t),cy+radius*Math.sin(t)]);}
+ return out;
+}
+function toLoops(model){
+ return model.loops.map(loop=>{
+  if(!loop||loop.points.length!==loop.bulges.length||loop.points.length<3||loop.points.length>12000)
+   throw Error('重绘轮廓不存在或点数不正确');
+  const curves=[],samples=[],n=loop.points.length;
+  for(let i=0;i<n;i++){
+   const a=loop.points[i],b=loop.points[(i+1)%n],bulge=loop.bulges[i];
+   if(!a.every(Number.isFinite)||dist(a,b)<1e-5||!Number.isFinite(bulge))throw Error('存在重合或无效的顶点');
+   const s=Math.abs(bulge)>1e-7?arc(a,b,bulge):{kind:'line',start:cp(a),end:cp(b)};
+   curves.push(s);samples.push(cp(a));
+   if(s.kind==='arc')samples.push(...sampleArc(s));
+  }
+  return {hole:loop.hole,open:false,points:samples,curves};
+ });
+}
+function bounds(loops){
+ let b=[Infinity,Infinity,-Infinity,-Infinity];
+ for(const l of loops)for(const p of l.points){b[0]=Math.min(b[0],p[0]);b[1]=Math.min(b[1],p[1]);b[2]=Math.max(b[2],p[0]);b[3]=Math.max(b[3],p[1]);}
+ if(!b.every(Number.isFinite)||b[2]-b[0]<1e-5||b[3]-b[1]<1e-5)throw Error('重绘尺寸退化');
+ return b;
+}
+function properIntersect(a,b,c,d){
+ const cross0=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+ if(Math.max(a[0],b[0])+1e-7<Math.min(c[0],d[0])||Math.max(c[0],d[0])+1e-7<Math.min(a[0],b[0])||
+    Math.max(a[1],b[1])+1e-7<Math.min(c[1],d[1])||Math.max(c[1],d[1])+1e-7<Math.min(a[1],b[1]))return false;
+ const eps=1e-7,u=cross0(a,b,c),v=cross0(a,b,d),w=cross0(c,d,a),z=cross0(c,d,b);
+ const between=(p,a,b)=>Math.min(a[0],b[0])-eps<=p[0]&&p[0]<=Math.max(a[0],b[0])+eps&&Math.min(a[1],b[1])-eps<=p[1]&&p[1]<=Math.max(a[1],b[1])+eps;
+ if(Math.abs(u)<eps&&between(c,a,b)||Math.abs(v)<eps&&between(d,a,b)||Math.abs(w)<eps&&between(a,c,d)||Math.abs(z)<eps&&between(b,c,d))return true;
+ return (u*v<0&&w*z<0);
+}
+function crossing(loops){
+ const grid=new Map(),cell=8,segments=[];
+ for(let k=0;k<loops.length;k++){
+  const pts=loops[k].points,n=pts.length;
+  if(n>10000)return '轮廓采样点过多，需要先简化';
+  if(Math.sign(C.area(pts))!== (loops[k].hole?1:-1))return '轮廓环绕方向不符合外轮廓/孔洞关系';
+  for(let i=0;i<n;i++){
+   const a=pts[i],b=pts[(i+1)%n];if(dist(a,b)<1e-6)return '存在零长度边';
+   const entry={a,b,loop:k,index:i,n},key=segments.length,checked=new Set();
+   const x0=Math.floor(Math.min(a[0],b[0])/cell),x1=Math.floor(Math.max(a[0],b[0])/cell);
+   const y0=Math.floor(Math.min(a[1],b[1])/cell),y1=Math.floor(Math.max(a[1],b[1])/cell);
+   if((x1-x0+1)*(y1-y0+1)>40000)return '边线过长，无法可靠检查拓扑';
+   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const coord=x+','+y,items=grid.get(coord)||[];
+    for(const idx of items){
+     if(checked.has(idx))continue;checked.add(idx);
+     const prev=segments[idx];
+     if(prev.loop===k&&(prev.index===i-1||(i===n-1&&prev.index===0)))continue;
+     if(properIntersect(a,b,prev.a,prev.b))return '存在自交或相互接触的轮廓';
+    }
+    items.push(key);grid.set(coord,items);
+   }
+   segments.push(entry);
+  }
+ }
+ return null;
+}
+function evaluate(model,reference,{enforcePixel=false,skipMask=false}={}){
+ let loops;
+ try{loops=toLoops(model);}catch(e){return {ok:false,reason:e.message};}
+ const conflict=crossing(loops);if(conflict)return {ok:false,reason:conflict};
+ const referenceOuters=reference.loops.filter(l=>!l.hole).length,referenceHoles=reference.loops.length-referenceOuters;
+ const outers=loops.filter(l=>!l.hole).length,holes=loops.length-outers;
+ if(outers!==referenceOuters||holes!==referenceHoles)return {ok:false,reason:'金属岛或孔洞数已改变'};
+ const met={ok:true,loops,outers,holes,primitives:model.loops.reduce((s,l)=>s+l.points.length,0),
+ arcs:model.loops.reduce((s,l)=>s+l.bulges.filter(b=>Math.abs(b)>1e-7).length,0),changedPixels:null,changePercent:null};
+ try{met.bounds=bounds(loops);}catch(e){return {ok:false,reason:e.message};}
+ if(skipMask||!reference.mask)return met;
+ if(reference.w*reference.h>4200000)return {ok:false,reason:'源像素尺寸过大'};
+ const image=A.rasterize(loops,reference.w,reference.h);
+ if(!image)return {ok:false,reason:'重绘边界不闭合或无法栅格化'};
+ const before=A.maskTopology(reference.mask,reference.w,reference.h),after=A.maskTopology(image,reference.w,reference.h);
+ met.before=before;met.after=after;
+ if(before[0]!==after[0]||before[1]!==after[1])return {ok:false,reason:'重绘造成金属连接关系或孔洞改变',before,after};
+ let changed=0;
+ for(let i=0;i<image.length;i++)if(image[i]!==reference.mask[i])changed++;
+ met.changedPixels=changed;
+ met.changePercent=100*changed/image.length;
+ if(enforcePixel&&changed>Math.max(16,Math.min(reference.mask.length*.028,(reference.pixels||0)*.10+16)))
+  return {...met,ok:false,reason:'自动规则化改动较大，已保留原轮廓；可手动修正并明确确认偏差'};
+ return met;
+}
+function segment(model,loop,i){
+ const l=model.loops[loop];if(!l||i<0||i>=l.points.length)throw Error('请选择有效轮廓边');
+ const a=l.points[i],b=l.points[(i+1)%l.points.length],bulge=l.bulges[i];
+ return Math.abs(bulge)>1e-7?arc(a,b,bulge):{kind:'line',start:cp(a),end:cp(b)};
+}
+function setBulge(model,loop,i,value){
+ const next=clone(model);if(!next.loops[loop]||i<0||i>=next.loops[loop].bulges.length)throw Error('请选择一条有效边');
+ next.loops[loop].bulges[i]=Math.abs(value)<.015?0:clamp(Number(value),-1,1);
+ return next;
+}
+function moveVertex(model,loop,i,p){
+ const next=clone(model),l=next.loops[loop];
+ if(!l||i<0||i>=l.points.length||!p.every(Number.isFinite))throw Error('顶点坐标无效');
+ l.points[i]=cp(p);return next;
+}
+function insertVertex(model,loop,i){
+ const next=clone(model),l=next.loops[loop];if(!l||i<0||i>=l.points.length)throw Error('请选择边');
+ const n=l.points.length,a=l.points[i],b=l.points[(i+1)%n],t=l.bulges[i];
+ let middle;
+ if(Math.abs(t)>1e-7){
+  const s=arc(a,b,t),r=dist(a,s.center),ang=Math.atan2(a[1]-s.center[1],a[0]-s.center[0])+s.sweep/2;
+  middle=[s.center[0]+r*Math.cos(ang),s.center[1]+r*Math.sin(ang)];
+  l.bulges[i]=Math.tan(s.sweep/8);
+ }else{middle=[(a[0]+b[0])/2,(a[1]+b[1])/2];}
+ l.points.splice(i+1,0,middle);l.bulges.splice(i+1,0,Math.abs(t)>1e-7?Math.tan(Math.atan(t)/2):0);
+ return next;
+}
+function removeVertex(model,loop,i){
+ const next=clone(model),l=next.loops[loop];if(!l||l.points.length<4)throw Error('闭合轮廓至少保留三个顶点');
+ if(i<0||i>=l.points.length)throw Error('请选择一个顶点');
+ const prev=(i+l.points.length-1)%l.points.length;
+ l.points.splice(i,1);l.bulges.splice(i,1);
+ l.bulges[(i+l.points.length-1)%l.points.length]=0;
+ return next;
+}
+function pathDistance(l,a,b){
+ let n=l.points.length,d=0;for(let i=a;i!==b;i=(i+1)%n)d+=dist(l.points[i],l.points[(i+1)%n]);
+ return d;
+}
+function replaceSpan(model,loop,from,to,kind){
+ const next=clone(model),l=next.loops[loop],n=l?.points.length;
+ if(!n||n<4||from===to||from<0||to<0||from>=n||to>=n)throw Error('请选同一条轮廓上的两个不同顶点');
+ const lenF=pathDistance(l,from,to),lenB=pathDistance(l,to,from);
+ const start=lenF<=lenB?from:to,end=lenF<=lenB?to:from,interior=[];
+ for(let i=(start+1)%n;i!==end;i=(i+1)%n)interior.push(i);
+ if(!interior.length)throw Error('两端点已经相邻；请直接选择边进行规则化');
+ const a=l.points[start],b=l.points[end],d=dist(a,b);if(d<1)throw Error('两端点过近');
+ let bulge=0;
+ if(kind==='arc'){
+  const mid=l.points[interior[Math.floor(interior.length/2)]],sag=cross(a,b,mid)/d;
+  bulge=clamp(2*sag/d,-.85,.85);
+  if(Math.abs(bulge)<.04)bulge=0.2*(Math.sign(sag)||1);
+ }
+ const drop=new Set(interior),points=[],bulges=[];
+ for(let i=0;i<n;i++){if(drop.has(i))continue;points.push(cp(l.points[i]));bulges.push(i===start?bulge:l.bulges[i]);}
+ l.points=points;l.bulges=bulges;return next;
+}
+function rdpChain(p,tol){
+ const kept=new Uint8Array(p.length);kept[0]=kept[p.length-1]=1;
+ const st=[[0,p.length-1]];
+ while(st.length){
+  const [a,b]=st.pop(),u=p[a],v=p[b],vx=v[0]-u[0],vy=v[1]-u[1],D=vx*vx+vy*vy;
+  let max=tol*tol,at=-1;
+  for(let i=a+1;i<b;i++){
+   const t=D?clamp(((p[i][0]-u[0])*vx+(p[i][1]-u[1])*vy)/D,0,1):0;
+   const e=(p[i][0]-u[0]-t*vx)**2+(p[i][1]-u[1]-t*vy)**2;
+   if(e>max){max=e;at=i;}
+  }
+  if(at>=0){kept[at]=1;st.push([a,at],[at,b]);}
+ }
+ return p.filter((_,i)=>kept[i]);
+}
+function simplifyLoop(l,tol){
+ if(l.points.length<14||l.bulges.some(x=>Math.abs(x)>1e-7))return l;
+ const n=l.points.length,half=Math.floor(n/2),p=l.points;
+ const reduced=rdpChain(p.slice(0,half+1),tol).slice(0,-1).concat(rdpChain(p.slice(half).concat([p[0]]),tol).slice(0,-1));
+ if(reduced.length<3||reduced.length>=n)return l;
+ return {...l,points:reduced,bulges:reduced.map(()=>0)};
+}
+function intersectLines(p,a,q,b){
+ const d=a[0]*b[1]-a[1]*b[0];if(Math.abs(d)<.07)return null;
+ const dx=q[0]-p[0],dy=q[1]-p[1],t=(dx*b[1]-dy*b[0])/d;
+ return [p[0]+a[0]*t,p[1]+a[1]*t];
+}
+function snappedLoop(l,angleTolerance=7){
+ const n=l.points.length,original=l.points,lines=[];
+ if(n>1500)return l;
+ for(let i=0;i<n;i++){
+  const a=original[i],b=original[(i+1)%n],d=dist(a,b);
+  if(Math.abs(l.bulges[i])>.00001||d<4){lines.push(null);continue;}
+  const theta=Math.atan2(b[1]-a[1],b[0]-a[0]),target=Math.round(theta/(Math.PI/4))*Math.PI/4;
+  if(Math.abs(Math.atan2(Math.sin(theta-target),Math.cos(theta-target)))>angleTolerance*Math.PI/180){lines.push(null);continue;}
+  const dir=[Math.cos(target),Math.sin(target)],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  lines.push({dir,mid});
+ }
+ const points=original.map(cp);
+ for(let i=0;i<n;i++){
+  const prev=lines[(i+n-1)%n],curr=lines[i],p=original[i];
+  if(prev&&curr){
+   const q=intersectLines(prev.mid,prev.dir,curr.mid,curr.dir);
+   if(q&&dist(q,p)<=Math.max(1.3,Math.min(3,Math.min(dist(original[(i+n-1)%n],p),dist(p,original[(i+1)%n]))*.18)))points[i]=q;
+  }else if(prev||curr){
+   const l0=prev||curr,dx=p[0]-l0.mid[0],dy=p[1]-l0.mid[1],dot=dx*l0.dir[0]+dy*l0.dir[1];
+   const q=[l0.mid[0]+dot*l0.dir[0],l0.mid[1]+dot*l0.dir[1]];
+   if(dist(q,p)<1.2)points[i]=q;
+  }
+ }
+ return {...l,points};
+}
+function symmetry(model,axis,threshold=1.5){
+ if(!['vertical','horizontal','rotation'].includes(axis))throw Error('请选择正确的对称关系');
+ const next=clone(model),all=next.loops.flatMap(l=>l.points),box=[Math.min(...all.map(p=>p[0])),Math.min(...all.map(p=>p[1])),Math.max(...all.map(p=>p[0])),Math.max(...all.map(p=>p[1]))];
+ const cx=(box[0]+box[2])/2,cy=(box[1]+box[3])/2,reflect=p=>axis==='vertical'?[2*cx-p[0],p[1]]:axis==='horizontal'?[p[0],2*cy-p[1]]:[2*cx-p[0],2*cy-p[1]];
+ let pairs=0;
+ for(const l of next.loops){
+  const matched=new Set();
+  for(let i=0;i<l.points.length;i++){
+   if(matched.has(i))continue;
+   const p=l.points[i],target=reflect(p);
+   let best=-1,error=threshold;
+   for(let j=0;j<l.points.length;j++){
+    if(matched.has(j)&&j!==i)continue;
+    const d=dist(l.points[j],target);
+    if(d<error){error=d;best=j;}
+   }
+   if(best<0)continue;
+   if(best===i){
+    const projected=[(p[0]+target[0])/2,(p[1]+target[1])/2];
+    l.points[i]=projected;matched.add(i);continue;
+   }
+   const q=l.points[best],mid=[(p[0]+reflect(q)[0])/2,(p[1]+reflect(q)[1])/2];
+   l.points[i]=mid;l.points[best]=reflect(mid);matched.add(i);matched.add(best);pairs++;
+  }
+ }
+ return {model:next,pairs};
+}
+function auto(model,reference,opt={}){
+ let current=clone(model),repaired=0,skipped=0;
+ for(let k=0;k<current.loops.length;k++){
+  const initial=current.loops[k],candidate=snappedLoop(simplifyLoop(initial,clamp(Number(opt.tolerance)||1.25,.3,2)),clamp(Number(opt.angleTolerance)||7,2,15));
+  const proposal=clone(current);proposal.loops[k]=candidate;
+  const check=evaluate(proposal,reference,{enforcePixel:true,skipMask:!!opt.skipMask});
+  if(check.ok){if(candidate.points.length!==initial.points.length||candidate.points.some((p,i)=>dist(p,initial.points[i])>1e-6)){repaired++;current=proposal;}}
+  else skipped++;
+ }
+ return {model:current,repaired,skipped};
+}
+const api={clone,fromResult,arc,sampleArc,toLoops,bounds,evaluate,segment,setBulge,moveVertex,insertVertex,removeVertex,replaceSpan,auto,symmetry};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;
+else root.FSSRedraw=api;
+})(typeof self!=='undefined'?self:globalThis);
+</script><script id="redraw-ui-code">/* The manual reference-guided redraw canvas. Loaded after FSSRedraw. */
+(function(root){
+'use strict';
+const R=root.FSSRedraw||(typeof require==='function'?require('./redraw.js'):null);
+if(!R)throw Error('FSSRedraw must load before FSSRedrawUI');
+function init(api){
+ const $=id=>document.getElementById(id),canvas=$('redrawCanvas'),ctx=canvas.getContext('2d');
+ let model=null,baseline=null,reference=null,undo=[],redo=[],selected=null,pending=null,drag=null,pan=[0,0],zoom=1;
+ const getImage=api.getCanvas;
+ const cp=o=>R.clone(o),show=(message,error=false)=>{$('redrawStatus').textContent=message;$('redrawStatus').className='redraw-status'+(error?' error':'');};
+ function projection(){
+  const img=getImage(),w=img?.width||1,h=img?.height||1,s=Math.min((canvas.width-50)/w,(canvas.height-50)/h)*zoom;
+  return {w,h,s,x:(canvas.width-w*s)/2+pan[0],y:(canvas.height-h*s)/2+pan[1]};
+ }
+ function imagePoint(e){
+  const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*canvas.width/rect.width,y=(e.clientY-rect.top)*canvas.height/rect.height,t=projection();
+  return [(x-t.x)/t.s,(y-t.y)/t.s];
+ }
+ const pd=(a,b,p)=>{let dx=b[0]-a[0],dy=b[1]-a[1],len=dx*dx+dy*dy,h=len?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len)):0;return Math.hypot(p[0]-a[0]-h*dx,p[1]-a[1]-h*dy);};
+ function midpoint(loop,index){
+  const s=R.segment(model,loop,index);
+  if(s.kind==='line')return [(s.start[0]+s.end[0])/2,(s.start[1]+s.end[1])/2];
+  const r=Math.hypot(s.start[0]-s.center[0],s.start[1]-s.center[1]);
+  const t=Math.atan2(s.start[1]-s.center[1],s.start[0]-s.center[0])+s.sweep/2;
+  return [s.center[0]+r*Math.cos(t),s.center[1]+r*Math.sin(t)];
+ }
+ function closest(pt,kind){
+  if(!model)return null;
+  const tolerance=12/projection().s;let best=null,distance=tolerance;
+  for(let k=0;k<model.loops.length;k++){
+   const l=model.loops[k],n=l.points.length;
+   if(kind==='vertex'){
+    for(let i=0;i<n;i++){const d=Math.hypot(l.points[i][0]-pt[0],l.points[i][1]-pt[1]);if(d<distance){best={loop:k,index:i,kind:'vertex'};distance=d;}}
+   }else{
+    for(let i=0;i<n;i++){
+     const s=R.segment(model,k,i),pts=[s.start,...(s.kind==='arc'?R.sampleArc(s,.5):[]),s.end];
+     for(let j=0;j<pts.length-1;j++){const d=pd(pts[j],pts[j+1],pt);if(d<distance){best={loop:k,index:i,kind:'edge'};distance=d;}}
+    }
+   }
+  }
+  return best;
+ }
+ function refresh(){
+  const usable=!!model;
+  for(const id of ['redrawAuto','redrawUndo','redrawRedo','redrawReset','redrawApply','redrawExport','redrawSymmetryApply','redrawArcBulge','redrawTool','redrawAddVertex','redrawDeleteVertex'])$(id).disabled=!usable;
+  if(usable){$('redrawUndo').disabled=!undo.length;$('redrawRedo').disabled=!redo.length;}
+  const edge=usable&&selected?.kind==='edge',vertex=usable&&selected?.kind==='vertex';
+  $('redrawAddVertex').disabled=!edge;$('redrawDeleteVertex').disabled=!vertex;$('redrawArcBulge').disabled=!edge;
+  if(edge)$('redrawArcBulge').value=model.loops[selected.loop].bulges[selected.index].toFixed(3);
+  $('redrawSelection').textContent=!usable?'开始重绘后可选择几何边与顶点。':pending?'请在同一轮廓上选择第二个顶点，以替换中间的像素台阶。':!selected?'鼠标/触摸选择轮廓点或边；拖动顶点调整位置。':selected.kind==='vertex'?'已选顶点 '+(selected.loop+1)+'-'+(selected.index+1):'已选'+(Math.abs(model.loops[selected.loop].bulges[selected.index])>.001?'圆弧':'直线')+' '+(selected.loop+1)+'-'+(selected.index+1);
+  draw();
+ }
+ function draw(){
+  canvas.width=900;canvas.height=620;
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,900,620);
+  const t=projection(),img=getImage();
+  if(img&&img.width&&img.height){
+   ctx.save();ctx.globalAlpha=Number($('redrawOpacity').value)/100;
+   ctx.drawImage(img,t.x,t.y,img.width*t.s,img.height*t.s);ctx.restore();
+   ctx.strokeStyle='#a4b3bd';ctx.lineWidth=1;ctx.strokeRect(t.x,t.y,img.width*t.s,img.height*t.s);
+  }
+  if(!model){ctx.fillStyle='#496270';ctx.textAlign='center';ctx.font='16px system-ui';ctx.fillText('点击“从当前图案开始智能重绘”',450,300);return;}
+  ctx.save();ctx.translate(t.x,t.y);ctx.scale(t.s,t.s);
+  for(let k=0;k<model.loops.length;k++){
+   const loop=model.loops[k],n=loop.points.length;
+   ctx.beginPath();
+   for(let i=0;i<n;i++){
+    const seg=R.segment(model,k,i);
+    if(!i)ctx.moveTo(...seg.start);
+    if(seg.kind==='line')ctx.lineTo(...seg.end);
+    else{
+     const [cx,cy]=seg.center;
+     const r=Math.hypot(seg.start[0]-cx,seg.start[1]-cy);
+     const ang=Math.atan2(seg.start[1]-cy,seg.start[0]-cx);
+     ctx.arc(cx,cy,r,ang,ang+seg.sweep,seg.sweep<0);
+    }
+   }
+   ctx.closePath();ctx.strokeStyle=loop.hole?'#d56a44':'#007e78';ctx.lineWidth=2.2/t.s;ctx.stroke();
+   if(n<=4000){
+    const step=n>800?Math.ceil(n/800):1;
+    for(let i=0;i<n;i+=step){const p=loop.points[i];ctx.beginPath();ctx.arc(...p,2.4/t.s,0,Math.PI*2);ctx.fillStyle='#167a9a';ctx.fill();}
+   }
+  }
+  if(pending){const p=model.loops[pending.loop].points[pending.index];ctx.beginPath();ctx.arc(...p,7/t.s,0,Math.PI*2);ctx.strokeStyle='#ed8f27';ctx.lineWidth=3/t.s;ctx.stroke();}
+  if(selected){
+   let p=selected.kind==='vertex'?model.loops[selected.loop].points[selected.index]:midpoint(selected.loop,selected.index);
+   ctx.beginPath();ctx.arc(...p,6/t.s,0,Math.PI*2);ctx.fillStyle=selected.kind==='edge'?'#f4a52a':'#db5332';ctx.fill();
+   ctx.lineWidth=2/t.s;ctx.strokeStyle='#333';ctx.stroke();
+  }
+  ctx.restore();
+ }
+ function metricsMessage(m){
+  return '金属外轮廓 '+m.outers+' · 孔洞 '+m.holes+' · 几何边 '+m.primitives+' · 原生圆弧 '+m.arcs+
+  (m.changePercent!=null?' · 与位图差异 '+m.changePercent.toFixed(2)+'%':' · 矢量源几何');
+ }
+ function valid(next,action){
+  const m=R.evaluate(next,reference,{skipMask:reference?.advanced?.mode==='native SVG direct import'});
+  if(!m.ok){show(action+'被拒绝：'+m.reason,true);return false;}
+  return m;
+ }
+ function mutate(change,label){
+  if(!model)return;
+  try{
+   const next=change(model),m=valid(next,label);
+   if(!m)return;
+   undo.push(cp(model));if(undo.length>45)undo.shift();redo=[];model=next;pending=null;
+   show(label+'已完成。'+metricsMessage(m));refresh();
+  }catch(err){show(label+'失败：'+err.message,true);}
+ }
+ function start(){
+  const data=api.getResult();
+  if(!data){show('先上传图片并等待初始轮廓生成。',true);return;}
+  try{
+   reference=data;
+   baseline=R.fromResult(reference);model=cp(baseline);
+   undo=[];redo=[];selected=null;pending=null;zoom=1;pan=[0,0];
+   const safe=R.auto(model,reference,{tolerance:Number($('redrawTolerance').value),skipMask:reference.advanced?.mode==='native SVG direct import'});
+   model=safe.model;
+   const m=R.evaluate(model,reference,{skipMask:reference.advanced?.mode==='native SVG direct import'});
+   if(!m.ok)throw Error(m.reason);
+   show('已生成重绘草稿：规则化 '+safe.repaired+' 条轮廓，保护性跳过 '+safe.skipped+' 条。'+metricsMessage(m));
+   refresh();canvas.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }catch(err){model=null;baseline=null;show('无法开始重绘：'+err.message,true);refresh();}
+ }
+ $('redrawStart').onclick=start;
+ $('redrawAuto').onclick=()=>mutate(current=>R.auto(current,reference,{tolerance:Number($('redrawTolerance').value),skipMask:reference.advanced?.mode==='native SVG direct import'}).model,'自动几何规则化');
+ $('redrawTool').onchange=()=>{pending=null;selected=null;refresh();};
+ $('redrawArcBulge').onchange=()=>{
+  if(selected?.kind!=='edge')return;
+  const value=Number($('redrawArcBulge').value);
+  if(!Number.isFinite(value)||Math.abs(value)>1){show('圆弧弯曲度须介于 -1 和 1',true);return;}
+  mutate(current=>R.setBulge(current,selected.loop,selected.index,value),'修改圆弧弯曲度');
+ };
+ $('redrawAddVertex').onclick=()=>{if(selected?.kind==='edge')mutate(c=>R.insertVertex(c,selected.loop,selected.index),'插入顶点');selected=null;refresh();};
+ $('redrawDeleteVertex').onclick=()=>{if(selected?.kind==='vertex')mutate(c=>R.removeVertex(c,selected.loop,selected.index),'删除顶点');selected=null;refresh();};
+ $('redrawSymmetryApply').onclick=()=>{
+  if(!model)return;
+  const axis=$('redrawSymmetry').value;if(axis==='none'){show('请先选择镜像或中心对称规则。',true);return;}
+  try{
+   const out=R.symmetry(model,axis,Number($('redrawSymmetryTolerance').value));
+   if(!out.pairs){show('未找到足够接近的镜像顶点，不进行强制对称变形。',true);return;}
+   mutate(()=>out.model,'对称规则化（匹配 '+out.pairs+' 对点）');
+  }catch(err){show(err.message,true);}
+ };
+ $('redrawUndo').onclick=()=>{if(!undo.length)return;redo.push(cp(model));model=undo.pop();selected=null;pending=null;show('已撤销重绘操作');refresh();};
+ $('redrawRedo').onclick=()=>{if(!redo.length)return;undo.push(cp(model));model=redo.pop();selected=null;pending=null;show('已重做重绘操作');refresh();};
+ $('redrawReset').onclick=()=>{if(!baseline)return;undo.push(cp(model));model=cp(baseline);redo=[];pending=null;selected=null;show('已恢复本次重绘开始时的几何轮廓');refresh();};
+ $('redrawZoom').oninput=()=>{zoom=Number($('redrawZoom').value);draw();};
+ $('redrawOpacity').oninput=draw;
+ $('redrawApply').onclick=()=>{
+  if(!model)return;
+  const m=valid(model,'应用重绘');if(!m)return;
+  if(m.changePercent!=null&&m.changePercent>2.0&&!$('redrawAllowDeviation').checked){
+   show('与像素参考图的变化超过 2%。若确认这是设计意图，请勾选“允许超出像素参考差异”再应用。',true);return;
+  }
+  try{
+   api.apply(m.loops,{kind:'reference-guided-redraw',applied:true,originalImageIsReference:true,angleTolerance:7,metrics:{changedPixels:m.changedPixels,changePercent:m.changePercent,holes:m.holes,outers:m.outers,arcs:m.arcs,primitives:m.primitives}});
+   reference=api.getResult();baseline=cp(model);undo=[];redo=[];
+   show('重绘几何已应用到 DXF 预览及导出。'+metricsMessage(m)+'。请在 CAD/CST 核对关键毫米尺寸。');
+   refresh();
+  }catch(err){show('应用失败：'+err.message,true);}
+ };
+ $('redrawExport').onclick=()=>{
+  if(!model)return;
+  const m=R.evaluate(model,reference,{skipMask:reference?.advanced?.mode==='native SVG direct import'});
+  const blob=new Blob([JSON.stringify({format:'FSSRedraw-v1',source:[reference.w,reference.h],model,validation:{...m,loops:undefined}},null,2)],{type:'application/json'});
+  const href=URL.createObjectURL(blob),anchor=document.createElement('a');
+  anchor.href=href;anchor.download='fss_redraw_geometry.json';document.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(href),6000);
+  show('已请求下载重绘编辑参数 JSON，可用于保存设计记录。');
+ };
+ function down(e){
+  if(!model||e.button===2)return;
+  const pt=imagePoint(e),tool=$('redrawTool').value;
+  if(e.altKey){drag={kind:'pan',start:[e.clientX,e.clientY],pan:pan.slice()};canvas.setPointerCapture(e.pointerId);return;}
+  if(tool==='span-line'||tool==='span-arc'){
+   const hit=closest(pt,'vertex');
+   if(!hit){show('请点击蓝色顶点建立连接。',true);return;}
+   if(!pending){pending=hit;selected=hit;show('已选第一端点，请选择同一轮廓的第二端点。');refresh();return;}
+   if(pending.loop!==hit.loop){pending=null;show('只能在同一条闭合轮廓中连接两个顶点。',true);refresh();return;}
+   const first=pending;pending=null;
+   mutate(x=>R.replaceSpan(x,hit.loop,first.index,hit.index,tool==='span-arc'?'arc':'line'),tool==='span-arc'?'圆弧替换':'直线替换');
+   selected=null;refresh();return;
+  }
+  if(tool==='move'){
+   const hit=closest(pt,'vertex');
+   if(hit){selected=hit;undo.push(cp(model));if(undo.length>45)undo.shift();redo=[];drag={kind:'vertex',hit,original:cp(model)};canvas.setPointerCapture(e.pointerId);refresh();return;}
+   const edge=closest(pt,'edge');selected=edge;refresh();
+   if(edge&&model.loops[edge.loop].bulges[edge.index]){
+    if(Math.hypot(pt[0]-midpoint(edge.loop,edge.index)[0],pt[1]-midpoint(edge.loop,edge.index)[1])<14/projection().s){
+     undo.push(cp(model));drag={kind:'bulge',hit:edge,original:cp(model)};canvas.setPointerCapture(e.pointerId);
+    }
+   }
+   return;
+  }
+  const edge=closest(pt,'edge');if(!edge){selected=null;refresh();return;}
+  selected=edge;
+  if(tool==='line')mutate(x=>R.setBulge(x,edge.loop,edge.index,0),'规则直线替换');
+  else if(tool==='arc'){
+   const existing=model.loops[edge.loop].bulges[edge.index],value=Math.abs(existing)>.01?existing:.25;
+   mutate(x=>R.setBulge(x,edge.loop,edge.index,value),'规则圆弧替换');
+  }
+  refresh();
+ }
+ function moving(e){
+  if(!drag||!model)return;
+  if(drag.kind==='pan'){
+   const box=canvas.getBoundingClientRect(),factor=canvas.width/box.width;
+   pan=[drag.pan[0]+(e.clientX-drag.start[0])*factor,drag.pan[1]+(e.clientY-drag.start[1])*factor];draw();return;
+  }
+  const pt=imagePoint(e),h=drag.hit;
+  if(drag.kind==='vertex')model=R.moveVertex(drag.original,h.loop,h.index,pt);
+  else if(drag.kind==='bulge'){
+   const l=drag.original.loops[h.loop],a=l.points[h.index],b=l.points[(h.index+1)%l.points.length],d=Math.hypot(b[0]-a[0],b[1]-a[1]);
+   const sag=d?((b[0]-a[0])*(pt[1]-a[1])-(b[1]-a[1])*(pt[0]-a[0]))/d:0;
+   model=R.setBulge(drag.original,h.loop,h.index,Math.max(-1,Math.min(1,2*sag/d)));
+  }
+  refresh();
+ }
+ function up(e){
+  if(!drag)return;
+  const current=drag;drag=null;
+  if(current.kind==='pan')return;
+  const m=valid(model,'拖动重绘点');
+  if(!m){
+   model=current.original;undo.pop();show('拖动位置被拒绝：该位置会破坏轮廓连接或发生自交。',true);
+  }else show('重绘点已更新。'+metricsMessage(m));
+  refresh();
+ }
+ canvas.addEventListener('pointerdown',down);
+ canvas.addEventListener('pointermove',moving);
+ canvas.addEventListener('pointerup',up);
+ canvas.addEventListener('pointercancel',up);
+ canvas.addEventListener('contextmenu',e=>e.preventDefault());
+ canvas.addEventListener('wheel',e=>{
+  if(!model)return;e.preventDefault();zoom=Math.max(1,Math.min(8,zoom*(e.deltaY<0?1.25:.8)));$('redrawZoom').value=String(zoom);draw();
+ },{passive:false});
+ const reset=()=>{
+  model=null;baseline=null;reference=null;undo=[];redo=[];selected=null;pending=null;drag=null;pan=[0,0];zoom=1;
+  $('redrawZoom').value='1';$('redrawAllowDeviation').checked=false;show('当前图像改变或几何编辑更新，请重新开始辅助重绘。');refresh();
+ };
+ refresh();return {reset,start,draw};
+}
+const api={init};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;
+else root.FSSRedrawUI=api;
+})(typeof self!=='undefined'?self:globalThis);
 </script><script id="codegen-code">
 /* Generate reproducible Python geometry from the FINAL vector loops (no browser dependencies). */
 (function (root) {
@@ -1162,7 +1715,7 @@ else root.FSSCodegen = api;
 'use strict';
 const $=id=>document.getElementById(id), controls=['cropX','cropY','cropW','cropH','polarity','threshold','materialMode','metalColor','colorTolerance','minPixels','resolution','vectorMode','fitTolerance','sdfSmoothing','symmetryMode','symmetryThreshold','reference','width','height','lock','origin','entity','guide'];
 let source=document.createElement('canvas'),working=document.createElement('canvas'),result=null,geometry=null,segments=[],selectedSegment=0,downloadUrl=null,dxfContent='',view='vector',imageName='fss_demo',busy=false,request=0,timer,worker=null,pickingMetal=false;
-let generatedCode='',svgText=null;
+let generatedCode='',svgText=null,redrawCtrl=null;
 let editorOn=false,editSelected=null,connectStart=null,editUndo=[],editRedo=[],autoLoops=null;
 let editZoom=1,editPanX=0,editPanY=0,editDrag=null,editIgnoreClick=false;
 try {const js=$('core-code').textContent+'\n'+$('advanced-code').textContent+'\nself.onmessage=e=>{try{let d=e.data;self.postMessage({id:d.id,result:FSSAdvanced.generate(d.rgba,d.w,d.h,d.opt)});}catch(err){self.postMessage({id:e.data.id,error:err.message});}}';let u=URL.createObjectURL(new Blob([js],{type:'text/javascript'}));worker=new Worker(u);URL.revokeObjectURL(u);worker.onmessage=e=>complete(e.data);worker.onerror=()=>{worker.terminate();worker=null;setStatus('当前浏览器不支持后台处理，已切换到本地处理模式。','warn');schedule();};}catch(e){worker=null;}
@@ -1172,12 +1725,12 @@ function setStatus(t,k=''){ $('status').textContent=t;$('status').className='sta
 function disable(v){busy=v;let blocked=v||!geometry||FSSCore.openContours(geometry);$('codeBuild').disabled=blocked;$('codeCopy').disabled=blocked||!generatedCode;$('codeDownload').disabled=blocked||!generatedCode;$('export').setAttribute('aria-disabled',String(blocked));$('saveAs').disabled=blocked;$('directDownload').setAttribute('aria-disabled',String(blocked));if(blocked){$('export').removeAttribute('href');$('directDownload').removeAttribute('href');$('exportStatus').textContent=v?'轮廓计算中…':geometry&&FSSCore.openContours(geometry)?'轮廓尚未闭合：连接缺口端点后才能导出 DXF。':'请先生成有效轮廓。';}else if(downloadUrl){$('export').href=downloadUrl;$('directDownload').href=downloadUrl;}$('report').disabled=blocked;$('segmentCsv').disabled=blocked;}
 function bounds(){let x=Number($('cropX').value),y=Number($('cropY').value),w=Number($('cropW').value),h=Number($('cropH').value);if(![x,y,w,h].every(Number.isInteger)||x<0||y<0||w<1||h<1||x+w>source.width||y+h>source.height)throw Error('裁切范围必须位于原图内，且为整数像素。');return{x,y,w,h};}
 function prep(){let b=bounds(),max=Number($('resolution').value),s=Math.min(1,max/Math.max(b.w,b.h));working.width=Math.max(1,Math.round(b.w*s));working.height=Math.max(1,Math.round(b.h*s));let c=working.getContext('2d',{willReadFrequently:true});c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.clearRect(0,0,working.width,working.height);c.drawImage(source,b.x,b.y,b.w,b.h,0,0,working.width,working.height);return c.getImageData(0,0,working.width,working.height);}
-function schedule(){clearTimeout(timer);resetEditor(true);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);setStatus('重新计算轮廓…');timer=setTimeout(process,140);}
+function schedule(){clearTimeout(timer);if(redrawCtrl)redrawCtrl.reset();resetEditor(true);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);setStatus('重新计算轮廓…');timer=setTimeout(process,140);}
 function process(){let id=request;try{let img=prep(),opt={threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:Number($('minPixels').value),vectorMode:$('vectorMode').value,smooth:$('vectorMode').value!=='exact',tolerance:Number($('fitTolerance').value),symmetryMode:$('symmetryMode').value,symmetryThreshold:Number($('symmetryThreshold').value)/100,sdfSmoothing:Number($('sdfSmoothing').value)/100};if(svgText&&$('vectorMode').value==='cadsvg')opt.vectorMode='exact';if(!Number.isInteger(opt.minPixels)||opt.minPixels<1||opt.minPixels>1000000)throw Error('小区域阈值需为 1 到 1000000 之间的整数。');$('thresholdValue').textContent=opt.threshold;if(worker)worker.postMessage({id,rgba:img.data,w:img.width,h:img.height,opt},[img.data.buffer]);else complete({id,result:FSSAdvanced.generate(img.data,img.width,img.height,opt)});}catch(e){complete({id,error:e.message});}}
 function complete(d){if(d.id!==request)return;if(!d.error&&svgText&&$('vectorMode').value==='cadsvg'){try{const v=FSSAdvanced.importSVG(svgText,source.width,source.height,bounds(),d.result.w,d.result.h,{materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value)});const box=v.loops.flatMap(l=>l.points).reduce((b,p)=>[Math.min(b[0],p[0]),Math.min(b[1],p[1]),Math.max(b[2],p[0]),Math.max(b[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);d.result={...d.result,loops:v.loops,bounds:box,advanced:{engine:'cadsvg',accepted:true,mode:'native SVG direct import',...v.info}};}catch(err){d.error='SVG 几何导入失败：'+err.message;}}if(d.error){result=null;geometry=null;segments=[];clearDownload();disable(false);setStatus(d.error,'error');renderSegments();draw();return;}result=d.result;autoLoops=FSSCore.cloneLoops(result.loops);editUndo=[];editRedo=[];editSelected=null;connectStart=null;disable(false);updateScale();}
 function ratio(){let b=bounds();if($('reference').value==='image')return b.h/b.w;let p=result.bounds;return ((p[3]-p[1])/result.h*b.h)/((p[2]-p[0])/result.w*b.w);}
 function updateScale(changed){if(!result)return;try{if($('lock').checked){let r=ratio();if(changed==='height')$('width').value=+(Number($('height').value)/r).toPrecision(10);else $('height').value=+(Number($('width').value)*r).toPrecision(10);}let width=Number($('width').value),height=Number($('height').value);if(width<.000001||height<.000001||width>1000000||height>1000000||!Number.isFinite(width+height))throw Error('宽高需在 0.000001 到 1000000 mm 之间。');geometry=FSSCore.scale(result,{width,height,reference:$('reference').value,center:$('origin').value==='center'});segments=FSSCore.measureSegments(geometry);selectedSegment=Math.min(selectedSegment,Math.max(0,segments.length-1));if(FSSCore.openContours(geometry)){clearDownload();$('exportStatus').textContent='存在未闭合轮廓，请连接端点后再导出。';}else prepareDownload();disable(false);renderSegments();let outer=result.loops.filter(q=>!q.hole).length,hole=result.loops.length-outer,points=result.loops.reduce((s,q)=>s+q.points.length,0);$('outerCount').textContent=outer;$('holeCount').textContent=hole;$('pointCount').textContent=points.toLocaleString();$('fill').textContent=(100*result.pixels/(result.w*result.h)).toFixed(1)+'%';$('dimensions').textContent=fmt(width)+' × '+fmt(height)+' mm';$('scaleInfo').textContent='处理分辨率 '+result.w+' × '+result.h+' px\n每像素 '+fmt(geometry.sx)+' × '+fmt(geometry.sy)+' mm';
-let warnings=[];
+let warnings=[];if(result.redraw?.applied)warnings.push('当前 DXF 轮廓来自参考图手工/规则化重绘，原图像素只作为参考；请核对关键尺寸。');
 const sym=result.symmetry;
 if(sym){
  const percent=n=>(100*n).toFixed(1)+'%';
@@ -1233,7 +1786,7 @@ function commitEditor(action,message){
   editUndo.push(FSSCore.cloneLoops(result.loops));
   if(editUndo.length>60)editUndo.shift();
   editRedo=[];
-  result={...result,loops:updated};
+  result={...result,loops:updated};if(redrawCtrl)redrawCtrl.reset();
   editSelected=null;connectStart=null;
   updateScale();
   $('editWarning').textContent='';
@@ -1258,7 +1811,7 @@ function editorUndoRedo(redo){
  const from=redo?editRedo:editUndo,to=redo?editUndo:editRedo;
  if(!from.length||!result)return;
  to.push(FSSCore.cloneLoops(result.loops));
- result={...result,loops:from.pop()};
+ result={...result,loops:from.pop()};if(redrawCtrl)redrawCtrl.reset();
  editSelected=null;connectStart=null;
  updateScale();$('editWarning').textContent='';
  updateEditorControls(redo?'已重做。':'已撤销。');
@@ -1266,7 +1819,7 @@ function editorUndoRedo(redo){
 function editorResetAuto(){
  if(!autoLoops||!result)return;
  editUndo.push(FSSCore.cloneLoops(result.loops));
- editRedo=[];result={...result,loops:FSSCore.cloneLoops(autoLoops)};
+ editRedo=[];result={...result,loops:FSSCore.cloneLoops(autoLoops)};if(redrawCtrl)redrawCtrl.reset();
  editSelected=null;connectStart=null;
  updateScale();$('editWarning').textContent='';
  updateEditorControls('已恢复当前图片的自动识别轮廓。');
@@ -1352,7 +1905,7 @@ function adjustEditorZoom(target,clientX,clientY){
 }
 
 function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.5.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,sdf_smoothing:Number($('sdfSmoothing').value)/100,svg_input:!!svgText,advanced_method:result.advanced||null,hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
+function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.6.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,sdf_smoothing:Number($('sdfSmoothing').value)/100,svg_input:!!svgText,advanced_method:result.advanced||null,reference_redraw:result.redraw||null,hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
 $('export').onclick=e=>{if(!geometry||busy||!dxfContent){e.preventDefault();return;}$('exportStatus').textContent='已请求下载：'+$('export').download+'。如未保存，请点击“直接下载 DXF 文件”。';};$('saveAs').onclick=async()=>{if(!geometry||busy||!dxfContent)return;let name=$('directDownload').download;if(typeof window.showSaveFilePicker==='function'){try{let handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'DXF CAD 图案',accept:{'application/dxf':['.dxf']}}]});let stream=await handle.createWritable();await stream.write(new Blob([dxfContent],{type:'application/dxf'}));await stream.close();$('exportStatus').textContent='已保存：'+name;return;}catch(err){$('exportStatus').textContent=err.name==='AbortError'?'已取消保存。':'浏览器未允许另存为：'+err.message+'。请点击“直接下载 DXF 文件”。';return;}}$('exportStatus').textContent='正在请求下载：'+name+'。若未保存，请点击“直接下载 DXF 文件”。';$('directDownload').click();};$('directDownload').onclick=()=>{if(!geometry||busy)return false;$('exportStatus').textContent='已请求直接下载：'+$('directDownload').download+'。如仍被浏览器阻止，请使用 DXF 文本备用入口。';};$('copyDxf').onclick=async()=>{if(!dxfContent)return;try{await navigator.clipboard.writeText(dxfContent);$('exportStatus').textContent='DXF 文本已复制，请保存为 .dxf 文件。';}catch(e){$('dxfText').focus();$('dxfText').select();$('exportStatus').textContent='请复制已选中的 DXF 文本，保存为 .dxf 文件。';}};document.querySelector('.download-help').addEventListener('toggle',e=>{if(e.target.open)$('dxfText').value=dxfContent;});$('segmentCsv').onclick=()=>{if(!segments.length)return;let rows=['ID,loop_type,x1_mm,y1_mm,x2_mm,y2_mm,dx_mm,dy_mm,length_mm',...segments.map(s=>[segmentId(s),s.hole?'hole':'outer',s.x1,s.y1,s.x2,s.y2,s.dx,s.dy,s.length].join(','))];download('\ufeff'+rows.join('\r\n'),imageName+'_segments.csv','text/csv;charset=utf-8');};$('report').onclick=()=>{if(geometry&&!busy)download(JSON.stringify(report(),null,2),imageName+'_parameters.json','application/json');};$('offline').onclick=()=>download('<!doctype html>\n'+document.documentElement.outerHTML,'FSS_Pattern_Lab.html','text/html');
 function generateCode(){
  if(!geometry||busy||FSSCore.openContours(geometry)){generatedCode='';$('codeStatus').textContent='图案没有有效闭合轮廓，无法生成代码。';return;}
@@ -1445,5 +1998,17 @@ document.addEventListener('keydown',event=>{
   event.preventDefault();selectedEditAction(editSelected.kind==='vertex'?'removeVertex':'removeSegment');
  }
 });
-$('dimensionMode').onchange=draw;showVectorMode();demo();
+$('dimensionMode').onchange=draw;
+redrawCtrl=FSSRedrawUI.init({
+ getResult:()=>result,
+ getCanvas:()=>working,
+ apply:(loops,metadata)=>{
+  if(!result)throw Error('当前没有识别结果');
+  resetEditor(true);
+  result={...result,loops,bounds:FSSRedraw.bounds(loops),redraw:metadata};
+  autoLoops=FSSCore.cloneLoops(loops);
+  updateScale();
+ }
+});
+showVectorMode();demo();
 </script></body></html>
