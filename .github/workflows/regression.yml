@@ -21,3 +21,4 @@ jobs:
       - run: node codegen.test.cjs
       - run: node cleanup.test.cjs
       - run: node stroke-boundary.test.cjs
+      - run: node region.test.cjs
