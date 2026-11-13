@@ -19,6 +19,19 @@
 .redraw-status{font-size:12px;color:var(--teal);padding:8px 0;white-space:pre-wrap}
 .redraw-status.error{color:#ab4324}
 @media(max-width:720px){.redraw-compact{grid-template-columns:1fr 1fr}.redraw-controls select{min-width:110px}.redraw-panel{padding:12px}}
+
+/* Annotation cleanup shares the geometry pipeline, including offline use. */
+.cleanup-panel{padding:18px 20px;background:#f8fcfc;border-bottom:1px solid var(--line)}
+.cleanup-panel summary{font-size:15px;font-weight:600;color:var(--teal)}
+.cleanup-panel p{margin-top:8px}.cleanup-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.cleanup-controls .btn{font-size:12px;padding:7px 10px}.cleanup-controls label{font-size:12px;color:#48606c}
+.cleanup-controls select{width:auto;max-width:260px}.cleanup-controls input[type=number]{width:74px;padding:6px}
+.cleanup-view{background:#edf3f5;border:1px solid #d0dfe4;border-radius:8px;padding:8px}
+.cleanup-view canvas{display:block;width:100%;max-height:none;touch-action:none;cursor:crosshair}
+.cleanup-status{font-size:12px;color:var(--teal);white-space:pre-wrap}.cleanup-status.error{color:#a4432e}
+.cleanup-candidates{max-height:170px;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:8px 0}
+.cleanup-candidate{font-size:12px;padding:5px;border:1px solid var(--line);border-radius:5px;display:flex;gap:6px;align-items:center}
+@media(max-width:720px){.cleanup-panel{padding:12px}.cleanup-candidates{grid-template-columns:1fr}.cleanup-controls select{max-width:100%}}
 </style></head><body><header><div><strong>▦ Pattern Lab</strong> <span>／ 二维电磁图案工作台</span></div><div class="tag">浏览器内处理 · 无需安装</div></header><main><h1>从拓扑图片，到可用的 CAD 轮廓。</h1><p class="lead">上传二维 FSS 图案 → 确定尺寸基准 → 导出毫米单位的 DXF。保留孔洞、细缝与独立金属岛。</p><div class="layout"><aside class="card">
 <div class="section"><h2><span class="step">01</span>输入图案</h2><input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/svg+xml,.svg"><label for="file" class="upload" id="drop"><div style="font-size:26px;color:var(--teal)">↥</div><strong>点击选择图片，或拖入此处</strong><span class="small">PNG / JPG / WebP / BMP / SVG</span></label><p id="filename" class="small" style="margin-top:10px;overflow-wrap:anywhere">当前为示例：带孔方环</p><div class="source-photo"><canvas id="sourceThumb" width="280" height="160" aria-label="上传图片预览，点击金属区域取色"></canvas><p class="small">原始图片预览 · 点击金属区域可直接取色</p><button id="showOriginal" class="btn wide" type="button">查看完整原图并取色</button></div><button id="demo" class="btn wide" style="margin-top:10px">载入带孔方环示例</button><details class="crop"><summary class="small">裁切图片（去掉坐标轴和标注）</summary><div class="row"><label class="field"><span>左侧 x / px</span><input id="cropX" type="number" min="0" value="0" step="1"></label><label class="field"><span>顶部 y / px</span><input id="cropY" type="number" min="0" value="0" step="1"></label></div><div class="row"><label class="field"><span>裁切宽 / px</span><input id="cropW" type="number" min="1" value="400" step="1"></label><label class="field"><span>裁切高 / px</span><input id="cropH" type="number" min="1" value="400" step="1"></label></div><button id="fullCrop" class="btn wide">恢复整张图片</button><p class="small" style="margin-top:7px">原点位于图片左上角。输入原图像素坐标；预览中浅色区域为裁切外部。</p></details></div>
 <div class="section"><h2><span class="step">02</span>识别金属区域</h2><label class="field"><span>识别方式</span><select id="materialMode"><option value="gray">黑白 / 灰度阈值</option><option value="color">按金属颜色识别</option></select></label><div id="graySettings"><label class="field"><span>图案极性</span><select id="polarity"><option value="dark">黑色 / 深色区域是金属</option><option value="light">白色 / 浅色区域是金属</option></select></label><label class="field"><span>二值化阈值 <b id="thresholdValue">127</b></span><input id="threshold" type="range" min="0" max="255" value="127"></label><button id="auto" class="btn wide">自动计算阈值</button></div><div id="colorSettings" class="hidden"><label class="field"><span>金属取样颜色</span><input id="metalColor" type="color" value="#ffff00" style="height:40px;width:100%;border:1px solid #cdd9df;border-radius:6px;cursor:pointer"></label><button id="pickMetal" class="btn wide">在原始图片上点击金属取色</button><label class="field"><span>颜色容差 <b id="colorToleranceValue">80</b> / 255</span><input id="colorTolerance" type="range" min="0" max="255" value="80"></label><p class="small">靠近所选颜色的像素作为金属；蓝色基板会保留为非金属。调节容差时对照二值预览。</p></div><label class="field"><span>轮廓生成</span><select id="vectorMode"><option value="ransac" selected>RANSAC + 直线、圆弧拟合（推荐）</option><option value="potrace">Potrace 风格 Bézier 矢量化</option><option value="marching">Marching Squares 亚像素轮廓</option><option value="sdf">Level Set / SDF 距离场轮廓</option><option value="cadsvg">参数化 CAD / SVG 几何</option><option value="hybrid">智能混合几何重建（兼容）</option><option value="fit">自适应斜直线去锯齿（兼容）</option><option value="exact">精确像素边界</option></select></label><label class="field" id="fitSetting"><span>拟合 / 简化容差</span><select id="fitTolerance"><option value="0.8">轻度</option><option value="1.25" selected>标准</option><option value="1.5">较强</option><option value="2">很强</option></select></label><p class="small">五种方法各自处理轮廓；不符合拓扑和细缝保护要求时自动回退。Potrace 风格是本站独立实现的 Bézier 重建算法，不是官方 Potrace 软件。</p><label class="field"><span>对称辅助直线修复</span><select id="symmetryMode"><option value="auto" selected>自动检测并优先对称修正（推荐）</option><option value="observe">仅检测，不修改轮廓</option><option value="off">关闭对称修正</option></select></label><label class="field"><span>近似对称吻合度阈值 <b id="symmetryThresholdValue">94%</b></span><input type="range" id="symmetryThreshold" min="85" max="99" step="1" value="94"></label><div class="note" id="modeInfo" aria-live="polite">RANSAC：检测连续直线并融合真实圆弧，尽量保留 FSS 尖角与狭缝。</div><label class="field hidden" id="sdfSetting"><span>Level Set / SDF 平滑强度 <b id="sdfValue">25%</b></span><input id="sdfSmoothing" type="range" min="0" max="70" step="5" value="25"></label><p id="advancedSummary" class="small" style="margin-top:8px" aria-live="polite">导入图片后显示当前算法的实际生成状态。</p><p class="small" id="symmetryInfo" aria-live="polite">导入图案后分别检测左右、上下和中心对称。只有匹配可靠且通过几何保护检查时才使用镜像直线。</p><div class="row"><label class="field"><span>去除小区域 / px²</span><input id="minPixels" type="number" min="1" max="1000000" step="1" value="1"></label><label class="field"><span>最大处理边长</span><select id="resolution"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option></select></label></div><p class="small">默认不删除小金属岛，孔洞始终保留。分辨率降低可能改变细线；尺寸信息将显示每像素代表的实际长度。</p></div>
@@ -34,7 +47,17 @@
 <textarea id="codeText" readonly spellcheck="false" aria-label="导入图案的 Python 源代码" placeholder="生成后在这里预览代码，也可复制或下载。"></textarea>
 <p class="small" id="codeStatus" role="status" aria-live="polite">等待有效闭合轮廓。</p>
 </div></aside>
-<section><div class="card"><div class="toolbar"><div class="tabs"><button class="btn" data-view="original">原始图片</button><button class="btn" data-view="binary">二值图案</button><button class="btn active" data-view="vector">DXF 轮廓</button></div><span class="badge">LIVE PREVIEW</span></div><div class="view"><canvas id="preview" width="800" height="620" aria-label="拓扑图案及尺寸预览"></canvas></div><div class="legend"><span><i class="dot" style="background:#008b84"></i>外轮廓</span><span><i class="dot" style="background:#df8357"></i>内部孔洞</span><span id="dimensions">20 × 20 mm</span></div><div class="editor-panel"><h2>手动点线编辑 <span class="badge">闭合轮廓保护</span></h2><p class="editor-hint">先自动生成轮廓，再开启编辑。选中顶点可删除并自动连接邻点；选中线段可删除形成缺口，再通过点击两个端点重新连接。同一闭合轮廓上的两点也能直接连线，代替它们之间较短的一段锯齿路径。</p><div class="editor-actions"><button id="editToggle" class="btn" type="button" disabled>开启编辑</button><select id="editMode" aria-label="手动编辑工具" disabled><option value="select">选择顶点 / 线段</option><option value="connect">连接两个顶点</option></select><button id="editDeleteVertex" class="btn" type="button" disabled>删除选中顶点</button><button id="editDeleteEdge" class="btn" type="button" disabled>删除选中线段</button><button id="editInsertVertex" class="btn" type="button" disabled>在线段中点加顶点</button><button id="editZoomOut" class="btn" type="button" disabled>− 缩小</button><button id="editZoomIn" class="btn" type="button" disabled>+ 放大</button><button id="editZoomReset" class="btn" type="button" disabled>适应视图</button><button id="editUndo" class="btn" type="button" disabled>撤销</button><button id="editRedo" class="btn" type="button" disabled>重做</button><button id="editReset" class="btn" type="button" disabled>恢复自动轮廓</button></div><p id="editSelection" class="editor-hint" role="status" aria-live="polite">生成轮廓后即可开启编辑。</p><p id="editWarning" class="editor-warning" aria-live="polite"></p></div><div class="redraw-panel" id="redrawPanel">
+<section><div class="card"><details class="cleanup-panel" id="cleanupPanel" open>
+<summary>标注排除与结构保护 <span class="badge">先清理，再重绘</span></summary>
+<p class="editor-hint">尺寸字母、数字、箭头、引线和虚线可在这里框选或涂抹排除。保护笔同时保护金属与空白间隙；补绘笔用于修复被文字遮挡的金属。每次操作后自动更新轮廓，会重置已有点线编辑和重绘草稿。</p>
+<div class="cleanup-controls"><label><input type="checkbox" id="cleanupEnabled" checked> 启用标注清理</label><label>工具 <select id="cleanupTool"><option value="exclude-rect">框选排除标注</option><option value="exclude-brush">画笔排除标注</option><option value="protect-brush">画笔保护结构 / 间隙</option><option value="protect-rect">框选保护结构 / 间隙</option><option value="metal-brush">补绘金属缺口</option><option value="restore-brush">恢复原始识别 / 解除保护</option><option value="pan">平移画布</option></select></label><label>画笔直径 / 原图 px <input type="number" id="cleanupBrush" min="1" max="150" value="8"></label></div>
+<div class="cleanup-controls"><label>底图 <select id="cleanupDisplay"><option value="original">原始图片</option><option value="binary">清理后的二值图</option></select></label><button class="btn" id="cleanupUndo" type="button" disabled>撤销清理</button><button class="btn" id="cleanupRedo" type="button" disabled>重做清理</button><button class="btn" id="cleanupClear" type="button" disabled>恢复全部区域</button><button class="btn" id="cleanupZoomOut" type="button">− 缩小</button><button class="btn" id="cleanupZoomIn" type="button">+ 放大</button><button class="btn" id="cleanupFit" type="button">适应视图</button></div>
+<div class="cleanup-view"><canvas id="cleanupCanvas" width="900" height="520" tabindex="0" aria-label="标注清理画布，拖动框选或涂抹；滚轮缩放，Alt 拖动平移"></canvas></div>
+<p class="small" id="cleanupSummary" aria-live="polite"></p><p class="small">绿色虚线框表示裁切范围。滚轮缩放至 16 倍，Alt 拖动平移；画布聚焦后 Ctrl/Cmd+Z 撤销。保护优先于排除和补绘，先用恢复笔解除保护后才能改动该区域。</p>
+<div class="cleanup-controls"><button class="btn" id="cleanupDetect" type="button">检测疑似标注 / 小区域</button><button class="btn" id="cleanupRemoveSelected" type="button" disabled>排除勾选候选</button><button class="btn" id="cleanupProtectSelected" type="button" disabled>保护勾选候选</button></div>
+<p class="small">本地检测依据连通区域大小和形状，不是文字识别。不会自动删除候选；小金属岛也可能被列出。与主体相连的引线请用画笔排除，交叠处请结合原图和设计尺寸修复。</p>
+<div id="cleanupCandidates" class="cleanup-candidates"></div><div id="cleanupStatus" class="cleanup-status" role="status" aria-live="polite">先按主体颜色识别，再框选或涂抹标注。</div>
+</details><div class="toolbar"><div class="tabs"><button class="btn" data-view="original">原始图片</button><button class="btn" data-view="binary">二值图案</button><button class="btn active" data-view="vector">DXF 轮廓</button></div><span class="badge">LIVE PREVIEW</span></div><div class="view"><canvas id="preview" width="800" height="620" aria-label="拓扑图案及尺寸预览"></canvas></div><div class="legend"><span><i class="dot" style="background:#008b84"></i>外轮廓</span><span><i class="dot" style="background:#df8357"></i>内部孔洞</span><span id="dimensions">20 × 20 mm</span></div><div class="editor-panel"><h2>手动点线编辑 <span class="badge">闭合轮廓保护</span></h2><p class="editor-hint">先自动生成轮廓，再开启编辑。选中顶点可删除并自动连接邻点；选中线段可删除形成缺口，再通过点击两个端点重新连接。同一闭合轮廓上的两点也能直接连线，代替它们之间较短的一段锯齿路径。</p><div class="editor-actions"><button id="editToggle" class="btn" type="button" disabled>开启编辑</button><select id="editMode" aria-label="手动编辑工具" disabled><option value="select">选择顶点 / 线段</option><option value="connect">连接两个顶点</option></select><button id="editDeleteVertex" class="btn" type="button" disabled>删除选中顶点</button><button id="editDeleteEdge" class="btn" type="button" disabled>删除选中线段</button><button id="editInsertVertex" class="btn" type="button" disabled>在线段中点加顶点</button><button id="editZoomOut" class="btn" type="button" disabled>− 缩小</button><button id="editZoomIn" class="btn" type="button" disabled>+ 放大</button><button id="editZoomReset" class="btn" type="button" disabled>适应视图</button><button id="editUndo" class="btn" type="button" disabled>撤销</button><button id="editRedo" class="btn" type="button" disabled>重做</button><button id="editReset" class="btn" type="button" disabled>恢复自动轮廓</button></div><p id="editSelection" class="editor-hint" role="status" aria-live="polite">生成轮廓后即可开启编辑。</p><p id="editWarning" class="editor-warning" aria-live="polite"></p></div><div class="redraw-panel" id="redrawPanel">
 <h2>参考图辅助重绘 · 几何规则化 <span class="badge">线段 / 原生圆弧</span></h2>
 <p class="editor-hint">将低分辨率原图作为半透明参考底图，自动对斜线进行规则化，或通过选点连接把像素台阶替换为真实直线和圆弧。重绘结果不会自动覆盖 DXF；点击“应用”并通过几何检查后才替换导出轮廓。</p>
 <div class="redraw-controls"><button class="btn primary" type="button" id="redrawStart">从当前图案开始智能重绘</button><button class="btn" id="redrawAuto" type="button" disabled>再次自动规则化</button><button class="btn" id="redrawReset" type="button" disabled>恢复初始草稿</button></div>
@@ -57,12 +80,195 @@
 <div class="redraw-controls"><button class="btn primary" id="redrawApply" type="button" disabled>应用重绘轮廓并更新 DXF</button><button class="btn" id="redrawExport" type="button" disabled>保存重绘草稿 JSON</button></div>
 <div class="redraw-status" id="redrawStatus" role="status" aria-live="polite">等待图片完成初始识别。</div>
 </div><div class="stats"><div><b id="outerCount">—</b><span>金属外轮廓</span></div><div><b id="holeCount">—</b><span>内部孔洞</span></div><div><b id="pointCount">—</b><span>导出顶点</span></div><div><b id="fill">—</b><span>图片金属填充率</span></div></div><div id="status" class="status" role="status" aria-live="polite">准备识别…</div><div class="measure"><h2>轮廓线段尺寸</h2><p class="small">数值由导出 DXF 的顶点坐标计算，单位 mm；点击预览中的边或表格行可查看具体线段。</p><div class="measure-controls"><label class="small" for="dimensionMode">图中标注</label><select id="dimensionMode"><option value="selected">选中线段</option><option value="all">全部线段</option><option value="none">隐藏</option></select><button id="segmentCsv" class="btn" type="button">下载全部线段 CSV</button></div><p id="selectedInfo" class="small">等待轮廓…</p><div class="measure-table"><table><thead><tr><th>编号</th><th>轮廓</th><th>起点 (x,y)</th><th>终点 (x,y)</th><th>长度 / mm</th></tr></thead><tbody id="segmentsBody"></tbody></table></div><p id="segmentTotal" class="small" style="margin-top:6px"></p></div></div><div class="card help"><h2>在 CST 中使用</h2><ol><li>将工程长度单位设为 <b>mm</b>，选择 DXF 文件进行导入；不同版本的导入菜单可能不同。</li><li>检查导入后的宽高和 XY 平面方向。默认导出的是二维闭合边界，可按工程需要构面和赋予金属厚度。</li><li>若导入为曲线，先按外轮廓构面，再扣除 <b>METAL_HOLE</b> 内轮廓围成的区域；嵌套金属岛应分别保留。</li><li><b>CELL_GUIDE</b> 仅是参考框，不应作为金属；根据实际模型设置介质、周期边界和端口。</li></ol><div class="note">尺寸示例：400 × 400 像素的单元图片设为 20 × 20 mm，200 像素的金属长度对应 10 mm。选择“图案外接框”时，留白不参与比例计算。</div><details><summary>关于精度、孔洞与适用范围</summary><p>彩色图可选择金属颜色，黄色金属与蓝色介质图会自动切换为按颜色识别；也可点击原图取样并调节颜色容差。默认对二值轮廓进行自适应逐段直线拟合，让斜边不再沿像素方格走台阶。局部细节无法安全拟合时保留原边界，不影响其余直线。保留外接尺寸并对导出形状重新栅格化检查金属岛与孔洞数量；允许少量边界像素改变。切换到“精确像素边界”可以完全按二值图逐格导出。拟合不会恢复原始 CAD 的精确坐标，不做圆弧识别；提高输入分辨率仍有助于精度。若有小于数像素的狭缝、尖端，请对照预览并使用像素模式验证。</p><p>孔洞由边界绕向识别。外轮廓为逆时针，孔洞为顺时针，DXF 的闭合标记已设置；孔洞图层本身并不等于 CST 中已执行布尔扣除。像素仅在角点相接时会输出相接的独立闭合区域并提示，建议在源图中改成明确的连接或间隙。</p><p>所有识别与 DXF 生成都在当前浏览器内完成，无需 AI 接口，也不会把上传图片发送到服务器。本工具不计算 S 参数或验证电磁性能。</p></details></div></section></div><p class="foot">Pattern Lab · Raster → closed contours → physical scale → DXF</p></main>
+<script id="cleanup-code">/* Annotation cleanup in original-image coordinates. Browser and Node share this logic. */
+(function(root){
+'use strict';
+const modes={exclude:1,protect:2,metal:3,restore:0};
+function rasterize(actions,w,h,viewport={x:0,y:0,w:1,h:1}){
+ if(!Number.isInteger(w)||!Number.isInteger(h)||w<1||h<1||w*h>4194304)throw Error('清理画布尺寸无效。');
+ const out=new Uint8Array(w*h),v=viewport;
+ if(![v.x,v.y,v.w,v.h].every(Number.isFinite)||v.w<=0||v.h<=0)throw Error('清理坐标范围无效。');
+ function rect(box,paint,test){
+  const x0=Math.max(0,Math.ceil((box[0]-v.x)/v.w*w-.5)),x1=Math.min(w,Math.ceil((box[2]-v.x)/v.w*w-.5));
+  const y0=Math.max(0,Math.ceil((box[1]-v.y)/v.h*h-.5)),y1=Math.min(h,Math.ceil((box[3]-v.y)/v.h*h-.5));
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+   if(test&&!test(v.x+(x+.5)*v.w/w,v.y+(y+.5)*v.h/h))continue;
+   const i=y*w+x;
+   if(paint===0||paint===2||out[i]!==2)out[i]=paint;
+  }
+ }
+ for(const a of actions){
+  if(!(a.mode in modes))throw Error('未知的清理工具。');
+  const code=modes[a.mode];
+  if(a.kind==='rect')rect(a.box,code);
+  else if(a.kind==='runs')for(const box of a.boxes)rect(box,code);
+  else if(a.kind==='stroke'){
+   const [rx,ry]=a.radius;
+   if(!(rx>0&&ry>0))throw Error('画笔尺寸无效。');
+   for(let j=0;j<a.points.length;j++){
+    const p=a.points[j],q=a.points[Math.max(0,j-1)];
+    rect([Math.min(p[0],q[0])-rx,Math.min(p[1],q[1])-ry,Math.max(p[0],q[0])+rx,Math.max(p[1],q[1])+ry],code,(x,y)=>{
+     const ax=(x-p[0])/rx,ay=(y-p[1])/ry,dx=(q[0]-p[0])/rx,dy=(q[1]-p[1])/ry;
+     const len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,(ax*dx+ay*dy)/len)):0;
+     return (ax-t*dx)**2+(ay-t*dy)**2<=1;
+    });
+   }
+  }else throw Error('未知的清理形状。');
+ }
+ return out;
+}
+function suggestions(mask,w,h){
+ const seen=new Uint8Array(mask.length),queue=new Int32Array(mask.length),components=[];
+ for(let k=0;k<mask.length;k++){
+  if(!mask[k]||seen[k])continue;
+  let head=0,tail=1,box=[w,h,0,0];queue[0]=k;seen[k]=1;
+  while(head<tail){
+   const i=queue[head++],x=i%w,y=(i-x)/w;
+   box=[Math.min(box[0],x),Math.min(box[1],y),Math.max(box[2],x+1),Math.max(box[3],y+1)];
+   for(const j of [x?i-1:-1,x<w-1?i+1:-1,y?i-w:-1,y<h-1?i+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;queue[tail++]=j;}
+  }
+  components.push({area:tail,box,seed:k});
+ }
+ components.sort((a,b)=>b.area-a.area);
+ const largest=components[0]?.area||0,edge=Math.max(w,h),limit=Math.min(w*h*.018,largest*.2);
+ const candidates=components.slice(1).filter(c=>{
+  const dx=c.box[2]-c.box[0],dy=c.box[3]-c.box[1],long=Math.max(dx,dy),short=Math.min(dx,dy);
+  return c.area<=limit&&(long<=edge*.16||short<=Math.max(3,edge*.007));
+ }).slice(0,80).map((c,id)=>({...c,id,reason:Math.min(c.box[2]-c.box[0],c.box[3]-c.box[1])<=Math.max(3,edge*.007)?'细线 / 虚线片段候选':'文字碎片 / 小金属岛候选'}));
+ return {candidates,total:components.length,limited:components.length>81};
+}
+function componentAction(mask,w,h,seed,viewport={x:0,y:0,w:1,h:1},mode='exclude'){
+ if(!mask[seed])throw Error('候选已失效，请重新检测。');
+ const seen=new Uint8Array(mask.length),q=[seed];seen[seed]=1;
+ for(let k=0;k<q.length;k++){
+  const i=q[k],x=i%w,y=(i-x)/w;
+  for(const j of [x?i-1:-1,x<w-1?i+1:-1,y?i-w:-1,y<h-1?i+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;q.push(j);}
+ }
+ q.sort((a,b)=>a-b);const boxes=[],v=viewport;
+ for(let k=0;k<q.length;k++){
+  const first=q[k],y=Math.floor(first/w);let end=first+1;
+  while(k+1<q.length&&q[k+1]===end&&Math.floor(q[k+1]/w)===y){k++;end++;}
+  boxes.push([v.x+(first%w)/w*v.w,v.y+y/h*v.h,v.x+((end-1)%w+1)/w*v.w,v.y+(y+1)/h*v.h]);
+ }
+ return {kind:'runs',mode,boxes};
+}
+const api={rasterize,suggestions,componentAction};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCleanup=api;
+})(typeof self!=='undefined'?self:globalThis);
+</script><script id="cleanup-ui-code">/* Interactive annotation exclusion. Source pixels remain untouched. */
+(function(root){
+'use strict';
+function init(api){
+ const $=id=>document.getElementById(id),canvas=$('cleanupCanvas'),ctx=canvas.getContext('2d'),M=root.FSSCleanup;
+ let actions=[],redo=[],draft=null,gesture=null,zoom=1,pan=[0,0],candidates=[],candidateMask=null,candidateViewport=null,overlay=null,raf=0;
+ const active=()=>$('cleanupEnabled').checked;
+ const say=(s,error=false)=>{$('cleanupStatus').textContent=s;$('cleanupStatus').className='cleanup-status'+(error?' error':'');};
+ function viewport(){const b=api.getBounds(),im=api.getSource();return {x:b.x/im.width,y:b.y/im.height,w:b.w/im.width,h:b.h/im.height};}
+ function projection(){const im=api.getSource(),s=Math.min((canvas.width-32)/im.width,(canvas.height-32)/im.height)*zoom;return {s,x:(canvas.width-im.width*s)/2+pan[0],y:(canvas.height-im.height*s)/2+pan[1]};}
+ function point(e){const r=canvas.getBoundingClientRect(),t=projection(),im=api.getSource();return [((e.clientX-r.left)*canvas.width/r.width-t.x)/t.s/im.width,((e.clientY-r.top)*canvas.height/r.height-t.y)/t.s/im.height];}
+ function clearCandidates(){candidates=[];candidateMask=null;$('cleanupCandidates').replaceChildren();$('cleanupRemoveSelected').disabled=true;$('cleanupProtectSelected').disabled=true;}
+ function refresh(){
+  $('cleanupUndo').disabled=!actions.length;$('cleanupRedo').disabled=!redo.length;$('cleanupClear').disabled=!actions.length;
+  $('cleanupSummary').textContent=(active()?'清理已启用':'清理已暂停，当前按原始识别生成')+' · '+actions.length+' 次操作。红色：排除；蓝色：保护原始金属 / 空白；绿色：补绘金属。';
+  draw();
+ }
+ function invalidate(){api.invalidate();clearCandidates();}
+ function changed(){overlay=null;clearCandidates();api.change();refresh();}
+ function append(list){if(!list.length)return;actions.push(...list);redo=[];changed();}
+ function draw(){
+  const im=api.getSource();if(!im.width||!im.height)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#f0f5f7';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const t=projection(),W=im.width*t.s,H=im.height*t.s;
+  ctx.drawImage(im,t.x,t.y,W,H);
+  let b;try{b=api.getBounds();}catch(e){b={x:0,y:0,w:im.width,h:im.height};}const r=api.getResult();
+  if($('cleanupDisplay').value==='binary'&&r){
+   const a=document.createElement('canvas');a.width=r.w;a.height=r.h;const c=a.getContext('2d'),d=c.createImageData(r.w,r.h);
+   for(let i=0;i<r.mask.length;i++){const v=r.mask[i]?25:255;d.data.set([v,v,v,255],i*4);}c.putImageData(d,0,0);
+   ctx.imageSmoothingEnabled=false;ctx.drawImage(a,t.x+b.x*t.s,t.y+b.y*t.s,b.w*t.s,b.h*t.s);ctx.imageSmoothingEnabled=true;
+  }
+  if(!overlay){
+   overlay=document.createElement('canvas');const scale=Math.min(1,1024/Math.max(im.width,im.height));overlay.width=Math.max(1,Math.round(im.width*scale));overlay.height=Math.max(1,Math.round(im.height*scale));
+   const c=overlay.getContext('2d'),d=c.createImageData(overlay.width,overlay.height),codes=M.rasterize(draft?[...actions,draft]:actions,overlay.width,overlay.height),colors={1:[225,70,52,110],2:[36,122,221,105],3:[29,172,101,120]};
+   for(let i=0;i<codes.length;i++)if(codes[i])d.data.set(colors[codes[i]],i*4);c.putImageData(d,0,0);
+  }
+  ctx.save();ctx.globalAlpha=active()?1:.3;ctx.imageSmoothingEnabled=false;ctx.drawImage(overlay,t.x,t.y,W,H);ctx.restore();
+  ctx.setLineDash([6,4]);ctx.lineWidth=1.5;ctx.strokeStyle='#007f78';ctx.strokeRect(t.x+b.x*t.s,t.y+b.y*t.s,b.w*t.s,b.h*t.s);ctx.setLineDash([]);
+  if(candidateMask){
+   const v=candidateViewport;
+   for(const c of candidates){const [x0,y0,x1,y1]=c.box;ctx.strokeStyle=c.selected?'#db4925':'#b18225';ctx.lineWidth=c.selected?2.5:1;ctx.strokeRect(t.x+(v.x+x0/candidateMask.w*v.w)*W,t.y+(v.y+y0/candidateMask.h*v.h)*H,(x1-x0)/candidateMask.w*v.w*W,(y1-y0)/candidateMask.h*v.h*H);ctx.font='12px system-ui';ctx.fillStyle='#a33f20';ctx.fillText(String(c.id+1),t.x+(v.x+x0/candidateMask.w*v.w)*W+2,t.y+(v.y+y0/candidateMask.h*v.h)*H-3);}
+  }
+ }
+ function queueDraw(){if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
+ function end(e,cancel=false){
+  if(!gesture||(e&&e.pointerId!==gesture.id))return;
+  const was=gesture;gesture=null;
+  if(canvas.hasPointerCapture?.(was.id))canvas.releasePointerCapture(was.id);
+  if(was.pan){draft=null;return;}
+  const op=draft;draft=null;overlay=null;
+  if(!cancel&&op){
+   if(op.kind==='rect'&&(op.box[2]-op.box[0])*api.getSource().width<.5&&(op.box[3]-op.box[1])*api.getSource().height<.5){api.change();refresh();say('框选需要拖动一个区域；也可切换到画笔。');return;}
+   append([op]);say(op.mode==='metal'?'已补绘金属。请核对真实间隙，随后可用直线 / 圆弧重绘边界。':'已更新清理区域，正在重新生成轮廓。');
+  }else{api.change();refresh();}
+ }
+ canvas.addEventListener('pointerdown',e=>{
+  if(gesture||(e.button!==0&&e.button!==1))return;e.preventDefault();canvas.focus();
+  const p=point(e),tool=$('cleanupTool').value,panMode=e.altKey||e.button===1||tool==='pan';
+  if(!panMode&&(p[0]<0||p[0]>1||p[1]<0||p[1]>1))return;
+  gesture={id:e.pointerId,start:p,last:[e.clientX,e.clientY],pan:panMode};canvas.setPointerCapture(e.pointerId);
+  if(panMode)return;
+  if(!active()){$('cleanupEnabled').checked=true;}
+  invalidate();const [mode,shape]=tool.split('-'),im=api.getSource(),radius=Math.max(.5,Math.min(150,Number($('cleanupBrush').value)||8))/2;
+  draft=shape==='rect'?{kind:'rect',mode,box:[...p,...p]}:{kind:'stroke',mode,points:[p],radius:[radius/im.width,radius/im.height]};overlay=null;queueDraw();
+ });
+ canvas.addEventListener('pointermove',e=>{
+  if(!gesture||gesture.id!==e.pointerId)return;e.preventDefault();
+  if(gesture.pan){const r=canvas.getBoundingClientRect();pan[0]+=(e.clientX-gesture.last[0])*canvas.width/r.width;pan[1]+=(e.clientY-gesture.last[1])*canvas.height/r.height;gesture.last=[e.clientX,e.clientY];queueDraw();return;}
+  const p=point(e),a=gesture.start;
+  if(draft.kind==='rect')draft.box=[Math.min(a[0],p[0]),Math.min(a[1],p[1]),Math.max(a[0],p[0]),Math.max(a[1],p[1])];
+  else draft.points.push(p);overlay=null;queueDraw();
+ });
+ canvas.addEventListener('pointerup',e=>end(e));canvas.addEventListener('pointercancel',e=>end(e,true));canvas.addEventListener('lostpointercapture',e=>end(e,true));
+ function setZoom(value,e){
+  const next=Math.max(1,Math.min(16,value));
+  if(e){const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*canvas.width/r.width-canvas.width/2,y=(e.clientY-r.top)*canvas.height/r.height-canvas.height/2;pan=[x-(x-pan[0])*next/zoom,y-(y-pan[1])*next/zoom];}
+  zoom=next;draw();
+ }
+ canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.25:.8),e);},{passive:false});
+ $('cleanupZoomIn').onclick=()=>setZoom(zoom*1.5);$('cleanupZoomOut').onclick=()=>setZoom(zoom/1.5);$('cleanupFit').onclick=()=>{zoom=1;pan=[0,0];draw();};
+ function undoRedo(forward){if(gesture)return;const from=forward?redo:actions,to=forward?actions:redo;if(from.length){to.push(from.pop());changed();say(forward?'已重做清理操作。':'已撤销清理操作。');}}
+ $('cleanupUndo').onclick=()=>undoRedo(false);$('cleanupRedo').onclick=()=>undoRedo(true);
+ canvas.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();undoRedo(e.key.toLowerCase()==='y'||e.shiftKey);}});
+ $('cleanupClear').onclick=()=>{if(!actions.length)return;actions.push({kind:'rect',mode:'restore',box:[0,0,1,1]});redo=[];changed();say('清理区域已恢复；可撤销此操作。');};
+ $('cleanupEnabled').onchange=()=>{if(gesture)end(null,true);changed();};$('cleanupDisplay').onchange=draw;
+ $('cleanupDetect').onclick=()=>{
+  try{
+   clearCandidates();const r=api.analyze();candidateMask=r;candidateViewport=viewport();const found=M.suggestions(r.mask,r.w,r.h);candidates=found.candidates;
+   for(const c of candidates){const label=document.createElement('label');label.className='cleanup-candidate';const check=document.createElement('input');check.type='checkbox';check.onchange=()=>{c.selected=check.checked;const any=candidates.some(c=>c.selected);$('cleanupRemoveSelected').disabled=!any;$('cleanupProtectSelected').disabled=!any;draw();};label.append(check,document.createTextNode((c.id+1)+' · '+c.reason+' · '+c.area+' px²'));$('cleanupCandidates').append(label);}
+   say(candidates.length?'找到 '+candidates.length+' 个候选，默认均未选择。它们也可能是真实金属岛；勾选后排除或保护。与主体相连的引线请用画笔处理。'+(found.limited?'仅展示前 80 个候选。':''):'未找到独立的小区域候选。相连的文字或引线可用框选 / 画笔排除。');draw();
+  }catch(e){say(e.message,true);}
+ };
+ function useSelected(mode){
+  if(!candidateMask)return;const ops=candidates.filter(c=>c.selected).map(c=>M.componentAction(candidateMask.mask,candidateMask.w,candidateMask.h,c.seed,candidateViewport,mode));
+  if(ops.length){if(!active())$('cleanupEnabled').checked=true;append(ops);say(mode==='protect'?'所选区域已保护，不受排除和小区域去噪影响。':'已仅排除所选连通区域的像素，未擦除其外接矩形内的其他结构。');}
+ }
+ $('cleanupRemoveSelected').onclick=()=>useSelected('exclude');$('cleanupProtectSelected').onclick=()=>useSelected('protect');
+ return {
+  reset(){actions=[];redo=[];draft=null;gesture=null;overlay=null;zoom=1;pan=[0,0];clearCandidates();$('cleanupEnabled').checked=true;say('先按主体颜色识别，再框选或涂抹尺寸文字、引线及箭头。');refresh();},
+  refresh(){refresh();},
+  pending(){clearCandidates();draw();},
+  overrides(w,h){return active()&&actions.length?M.rasterize(actions,w,h,viewport()):null;},
+  report(){return {version:1,enabled:active(),coordinate_system:'normalized original image',operations:JSON.parse(JSON.stringify(actions))};}
+ };
+}
+root.FSSCleanupUI={init};
+})(typeof self!=='undefined'?self:globalThis);
+</script>
 <script id="core-code">/* Pure raster-to-CAD geometry. No external dependencies. */
 (function(root){
 'use strict';
 function area(p){let a=0;for(let i=0;i<p.length;i++){let q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return a/2;}
 function otsu(rgba){let h=new Float64Array(256),n=rgba.length/4,sum=0;for(let i=0;i<rgba.length;i+=4){let a=rgba[i+3]/255,v=Math.round((.2126*rgba[i]+.7152*rgba[i+1]+.0722*rgba[i+2])*a+255*(1-a));h[v]++;sum+=v;}let best=-1,t=127,c=0,s=0;for(let i=0;i<255;i++){c+=h[i];s+=i*h[i];if(!c||c===n)continue;let v=c*(n-c)*(s/c-(sum-s)/(n-c))**2;if(v>best){best=v;t=i;}}return t;}
-function clean(mask,w,h,min){if(min<=1)return 0;let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),removed=0;for(let i=0;i<mask.length;i++){if(!mask[i]||seen[i])continue;let head=0,tail=1;q[0]=i;seen[i]=1;while(head<tail){let p=q[head++],x=p%w,y=Math.floor(p/w);for(let j of [x>0?p-1:-1,x<w-1?p+1:-1,y>0?p-w:-1,y<h-1?p+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;q[tail++]=j;}}if(tail<min){removed++;for(let k=0;k<tail;k++)mask[q[k]]=0;}}return removed;}
+function clean(mask,w,h,min,overrides){if(min<=1)return 0;let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),removed=0;for(let i=0;i<mask.length;i++){if(!mask[i]||seen[i])continue;let head=0,tail=1;q[0]=i;seen[i]=1;while(head<tail){let p=q[head++],x=p%w,y=Math.floor(p/w);for(let j of [x>0?p-1:-1,x<w-1?p+1:-1,y>0?p-w:-1,y<h-1?p+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;q[tail++]=j;}}if(tail<min&&!(overrides&&q.subarray(0,tail).some(i=>overrides[i]===2||overrides[i]===3))){removed++;for(let k=0;k<tail;k++)mask[q[k]]=0;}}return removed;}
 function contours(mask,w,h){const stride=w+1,out=new Map();let edgeCount=0;function edge(x,y,xx,yy,d){let a=y*stride+x,b=yy*stride+xx;let e={a,b,d,used:false};if(!out.has(a))out.set(a,[]);out.get(a).push(e);if(++edgeCount>450000)throw Error('轮廓边缘过多。请降低处理分辨率、裁掉文字标注或提高去噪阈值。');}
 let pixels=0,bounds=[w,h,0,0],diagonal=0;function on(x,y){return x>=0&&y>=0&&x<w&&y<h&&mask[y*w+x];}
 for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(!on(x,y))continue;pixels++;bounds[0]=Math.min(bounds[0],x);bounds[1]=Math.min(bounds[1],y);bounds[2]=Math.max(bounds[2],x+1);bounds[3]=Math.max(bounds[3],y+1);if(!on(x,y-1))edge(x+1,y,x,y,2);if(!on(x-1,y))edge(x,y,x,y+1,1);if(!on(x,y+1))edge(x,y+1,x+1,y+1,0);if(!on(x+1,y))edge(x+1,y+1,x+1,y,3);if(x<w-1&&y<h-1){let a=on(x+1,y),b=on(x,y+1),c=on(x+1,y+1);if(!a&&!b&&c)diagonal++;}if(x>0&&y<h-1&&!on(x-1,y)&&!on(x,y+1)&&on(x-1,y+1))diagonal++;}
@@ -529,7 +735,26 @@ function hybridContours(raw,tolerance,settings){
  return {...base,loops,hybrid:{arcs,lines,rejected,changedPixels:changed}};
 }
 
-function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};let tol=Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25));return opt.vectorMode==='hybrid'?hybridContours(raw,tol,opt):smoothContours(raw,opt.smooth===false?0:tol,opt);}
+// User exclusions and protected foreground/background are hard fitting constraints.
+function checkPixelOverrides(loops,reference){
+ const codes=reference.pixelOverrides;if(!codes)return true;
+ const drawn=rasterize(loops,reference.w,reference.h);if(!drawn)return false;
+ for(let i=0;i<codes.length;i++)if(codes[i]&&(codes[i]===1?drawn[i]!==0:codes[i]===3?drawn[i]!==1:drawn[i]!==reference.mask[i]))return false;
+ return true;
+}
+function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}const codes=opt.pixelOverrides;
+let cleanup={active:false,excludedPixels:0,protectedPixels:0,metalPixels:0,removedMetalPixels:0,addedMetalPixels:0};
+if(codes){
+ if(codes.length!==mask.length)throw Error('标注清理掩膜与当前处理尺寸不一致。');
+ for(let i=0;i<codes.length;i++){
+  const code=codes[i];if(!Number.isInteger(code)||code<0||code>3)throw Error('标注清理掩膜包含无效值。');
+  if(code)cleanup.active=true;
+  if(code===1){cleanup.excludedPixels++;cleanup.removedMetalPixels+=mask[i];mask[i]=0;}
+  else if(code===2)cleanup.protectedPixels++;
+  else if(code===3){cleanup.metalPixels++;cleanup.addedMetalPixels+=1-mask[i];mask[i]=1;}
+ }
+}
+let removed=clean(mask,w,h,opt.minPixels||1,codes),raw={...contours(mask,w,h),mask,w,h,removed,cleanup,...(cleanup.active?{pixelOverrides:codes}:{})};let tol=Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25));const fitted=opt.vectorMode==='hybrid'?hybridContours(raw,tol,opt):smoothContours(raw,opt.smooth===false?0:tol,opt);if(!checkPixelOverrides(fitted.loops,raw)){return {...raw,cleanup:{...cleanup,fitFallback:true}};}return fitted;}
 function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;const xy=p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy];
 let uniform=Math.abs(sx-sy)<1e-9*Math.max(sx,sy);
 let loops=result.loops.map(q=>({hole:q.hole,open:!!q.open,points:q.points.map(xy),
@@ -548,7 +773,7 @@ function polygon(loop,layer){
  for(let s of path){add(10,num(s.start[0]),20,num(s.start[1]));if(s.kind==='arc')add(42,num(Math.tan(s.sweep/4)));}
 }
 for(let loop of g.loops)polygon(loop,loop.hole?'METAL_HOLE':'METAL_OUTER');if(options.guide)polygon({points:[[-g.ox,-g.oy],[g.width-g.ox,-g.oy],[g.width-g.ox,g.height-g.oy],[-g.ox,g.height-g.oy]]},'CELL_GUIDE');add(0,'ENDSEC',0,'EOF');return lines.join('\r\n')+'\r\n';}
-const api={detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,hybridContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
+const api={checkPixelOverrides,detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,hybridContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
 })(typeof self!=='undefined'?self:globalThis);
 </script><script id="advanced-code">/* Five geometry engines for FSS Pattern Lab. Self-contained, no network dependencies.
    Potrace-style is an independent corner/Bézier tracer, not the Potrace library. */
@@ -637,6 +862,7 @@ function finePixel(mask,w,h,i){
  return 1+spans[0]+spans[1]<=2||1+spans[2]+spans[3]<=2;
 }
 function validCandidate(raw,loops,options={}){
+ if(!C.checkPixelOverrides(loops,raw))return {ok:false,why:'annotation exclusion or protected structure changed'};
  if(!loops.length||loops.length>1200||loops.some(l=>l.points.length<3||l.points.length>15000))return {ok:false,why:'invalid loop sizes'};
  const after=rasterize(loops,raw.w,raw.h);if(!after)return {ok:false,why:'invalid scanlines'};
  const initial=maskTopology(raw.mask,raw.w,raw.h),final=maskTopology(after,raw.w,raw.h);
@@ -1603,8 +1829,7 @@ const api={init};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else root.FSSRedrawUI=api;
 })(typeof self!=='undefined'?self:globalThis);
-</script><script id="codegen-code">
-/* Generate reproducible Python geometry from the FINAL vector loops (no browser dependencies). */
+</script><script id="codegen-code">/* Generate reproducible Python geometry from the FINAL vector loops (no browser dependencies). */
 (function (root) {
 'use strict';
 function generatedPython(geometry, options = {}) {
@@ -1736,7 +1961,7 @@ else root.FSSCodegen = api;
 'use strict';
 const $=id=>document.getElementById(id), controls=['cropX','cropY','cropW','cropH','polarity','threshold','materialMode','metalColor','colorTolerance','minPixels','resolution','vectorMode','fitTolerance','sdfSmoothing','symmetryMode','symmetryThreshold','reference','width','height','lock','origin','entity','guide'];
 let source=document.createElement('canvas'),working=document.createElement('canvas'),result=null,geometry=null,segments=[],selectedSegment=0,downloadUrl=null,dxfContent='',view='vector',imageName='fss_demo',busy=false,request=0,timer,worker=null,pickingMetal=false;
-let generatedCode='',svgText=null,redrawCtrl=null;
+let generatedCode='',svgText=null,redrawCtrl=null,cleanupCtrl=null;
 let editorOn=false,editSelected=null,connectStart=null,editUndo=[],editRedo=[],autoLoops=null;
 let editZoom=1,editPanX=0,editPanY=0,editDrag=null,editIgnoreClick=false;
 try {const js=$('core-code').textContent+'\n'+$('advanced-code').textContent+'\nself.onmessage=e=>{try{let d=e.data;self.postMessage({id:d.id,result:FSSAdvanced.generate(d.rgba,d.w,d.h,d.opt)});}catch(err){self.postMessage({id:e.data.id,error:err.message});}}';let u=URL.createObjectURL(new Blob([js],{type:'text/javascript'}));worker=new Worker(u);URL.revokeObjectURL(u);worker.onmessage=e=>complete(e.data);worker.onerror=()=>{worker.terminate();worker=null;setStatus('当前浏览器不支持后台处理，已切换到本地处理模式。','warn');schedule();};}catch(e){worker=null;}
@@ -1746,12 +1971,12 @@ function setStatus(t,k=''){ $('status').textContent=t;$('status').className='sta
 function disable(v){busy=v;let blocked=v||!geometry||FSSCore.openContours(geometry);$('codeBuild').disabled=blocked;$('codeCopy').disabled=blocked||!generatedCode;$('codeDownload').disabled=blocked||!generatedCode;$('export').setAttribute('aria-disabled',String(blocked));$('saveAs').disabled=blocked;$('directDownload').setAttribute('aria-disabled',String(blocked));if(blocked){$('export').removeAttribute('href');$('directDownload').removeAttribute('href');$('exportStatus').textContent=v?'轮廓计算中…':geometry&&FSSCore.openContours(geometry)?'轮廓尚未闭合：连接缺口端点后才能导出 DXF。':'请先生成有效轮廓。';}else if(downloadUrl){$('export').href=downloadUrl;$('directDownload').href=downloadUrl;}$('report').disabled=blocked;$('segmentCsv').disabled=blocked;}
 function bounds(){let x=Number($('cropX').value),y=Number($('cropY').value),w=Number($('cropW').value),h=Number($('cropH').value);if(![x,y,w,h].every(Number.isInteger)||x<0||y<0||w<1||h<1||x+w>source.width||y+h>source.height)throw Error('裁切范围必须位于原图内，且为整数像素。');return{x,y,w,h};}
 function prep(){let b=bounds(),max=Number($('resolution').value),s=Math.min(1,max/Math.max(b.w,b.h));working.width=Math.max(1,Math.round(b.w*s));working.height=Math.max(1,Math.round(b.h*s));let c=working.getContext('2d',{willReadFrequently:true});c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.clearRect(0,0,working.width,working.height);c.drawImage(source,b.x,b.y,b.w,b.h,0,0,working.width,working.height);return c.getImageData(0,0,working.width,working.height);}
-function schedule(){clearTimeout(timer);if(redrawCtrl)redrawCtrl.reset();resetEditor(true);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);setStatus('重新计算轮廓…');timer=setTimeout(process,140);}
-function process(){let id=request;try{let img=prep(),opt={threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:Number($('minPixels').value),vectorMode:$('vectorMode').value,smooth:$('vectorMode').value!=='exact',tolerance:Number($('fitTolerance').value),symmetryMode:$('symmetryMode').value,symmetryThreshold:Number($('symmetryThreshold').value)/100,sdfSmoothing:Number($('sdfSmoothing').value)/100};if(svgText&&$('vectorMode').value==='cadsvg')opt.vectorMode='exact';if(!Number.isInteger(opt.minPixels)||opt.minPixels<1||opt.minPixels>1000000)throw Error('小区域阈值需为 1 到 1000000 之间的整数。');$('thresholdValue').textContent=opt.threshold;if(worker)worker.postMessage({id,rgba:img.data,w:img.width,h:img.height,opt},[img.data.buffer]);else complete({id,result:FSSAdvanced.generate(img.data,img.width,img.height,opt)});}catch(e){complete({id,error:e.message});}}
-function complete(d){if(d.id!==request)return;if(!d.error&&svgText&&$('vectorMode').value==='cadsvg'){try{const v=FSSAdvanced.importSVG(svgText,source.width,source.height,bounds(),d.result.w,d.result.h,{materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value)});const box=v.loops.flatMap(l=>l.points).reduce((b,p)=>[Math.min(b[0],p[0]),Math.min(b[1],p[1]),Math.max(b[2],p[0]),Math.max(b[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);d.result={...d.result,loops:v.loops,bounds:box,advanced:{engine:'cadsvg',accepted:true,mode:'native SVG direct import',...v.info}};}catch(err){d.error='SVG 几何导入失败：'+err.message;}}if(d.error){result=null;geometry=null;segments=[];clearDownload();disable(false);setStatus(d.error,'error');renderSegments();draw();return;}result=d.result;autoLoops=FSSCore.cloneLoops(result.loops);editUndo=[];editRedo=[];editSelected=null;connectStart=null;disable(false);updateScale();}
+function schedule(){clearTimeout(timer);if(redrawCtrl)redrawCtrl.reset();resetEditor(true);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);cleanupCtrl?.pending();setStatus('重新计算轮廓…');timer=setTimeout(process,140);}
+function process(){let id=request;try{let img=prep(),opt={threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:Number($('minPixels').value),vectorMode:$('vectorMode').value,smooth:$('vectorMode').value!=='exact',tolerance:Number($('fitTolerance').value),symmetryMode:$('symmetryMode').value,symmetryThreshold:Number($('symmetryThreshold').value)/100,sdfSmoothing:Number($('sdfSmoothing').value)/100};if(svgText&&$('vectorMode').value==='cadsvg')opt.vectorMode='exact';if(!Number.isInteger(opt.minPixels)||opt.minPixels<1||opt.minPixels>1000000)throw Error('小区域阈值需为 1 到 1000000 之间的整数。');opt.pixelOverrides=cleanupCtrl?.overrides(img.width,img.height);$('thresholdValue').textContent=opt.threshold;if(worker)worker.postMessage({id,rgba:img.data,w:img.width,h:img.height,opt},[img.data.buffer]);else complete({id,result:FSSAdvanced.generate(img.data,img.width,img.height,opt)});}catch(e){complete({id,error:e.message});}}
+function complete(d){if(d.id!==request)return;if(!d.error&&svgText&&$('vectorMode').value==='cadsvg'&&!d.result.cleanup?.active){try{const v=FSSAdvanced.importSVG(svgText,source.width,source.height,bounds(),d.result.w,d.result.h,{materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value)});const box=v.loops.flatMap(l=>l.points).reduce((b,p)=>[Math.min(b[0],p[0]),Math.min(b[1],p[1]),Math.max(b[2],p[0]),Math.max(b[3],p[1])],[Infinity,Infinity,-Infinity,-Infinity]);d.result={...d.result,loops:v.loops,bounds:box,advanced:{engine:'cadsvg',accepted:true,mode:'native SVG direct import',...v.info}};}catch(err){d.error='SVG 几何导入失败：'+err.message;}}if(d.error){result=null;geometry=null;segments=[];clearDownload();disable(false);setStatus(d.error,'error');renderSegments();draw();cleanupCtrl?.refresh();return;}result=d.result;autoLoops=FSSCore.cloneLoops(result.loops);editUndo=[];editRedo=[];editSelected=null;connectStart=null;disable(false);updateScale();cleanupCtrl?.refresh();}
 function ratio(){let b=bounds();if($('reference').value==='image')return b.h/b.w;let p=result.bounds;return ((p[3]-p[1])/result.h*b.h)/((p[2]-p[0])/result.w*b.w);}
 function updateScale(changed){if(!result)return;try{if($('lock').checked){let r=ratio();if(changed==='height')$('width').value=+(Number($('height').value)/r).toPrecision(10);else $('height').value=+(Number($('width').value)*r).toPrecision(10);}let width=Number($('width').value),height=Number($('height').value);if(width<.000001||height<.000001||width>1000000||height>1000000||!Number.isFinite(width+height))throw Error('宽高需在 0.000001 到 1000000 mm 之间。');geometry=FSSCore.scale(result,{width,height,reference:$('reference').value,center:$('origin').value==='center'});segments=FSSCore.measureSegments(geometry);selectedSegment=Math.min(selectedSegment,Math.max(0,segments.length-1));if(FSSCore.openContours(geometry)){clearDownload();$('exportStatus').textContent='存在未闭合轮廓，请连接端点后再导出。';}else prepareDownload();disable(false);renderSegments();let outer=result.loops.filter(q=>!q.hole).length,hole=result.loops.length-outer,points=result.loops.reduce((s,q)=>s+q.points.length,0);$('outerCount').textContent=outer;$('holeCount').textContent=hole;$('pointCount').textContent=points.toLocaleString();$('fill').textContent=(100*result.pixels/(result.w*result.h)).toFixed(1)+'%';$('dimensions').textContent=fmt(width)+' × '+fmt(height)+' mm';$('scaleInfo').textContent='处理分辨率 '+result.w+' × '+result.h+' px\n每像素 '+fmt(geometry.sx)+' × '+fmt(geometry.sy)+' mm';
-let warnings=[];if(result.redraw?.applied)warnings.push('当前 DXF 轮廓来自参考图手工/规则化重绘，原图像素只作为参考；请核对关键尺寸。');
+let warnings=[];if(result.cleanup?.active){const c=result.cleanup;warnings.push('标注清理：排除 '+c.excludedPixels+' px，保护 '+c.protectedPixels+' px，补绘 '+c.metalPixels+' px；以清理后的图案检查孔洞与连通性。');if(c.fitFallback)warnings.push('拟合触及清理 / 保护区域，已回退到清理后的精确像素边界。');if(svgText&&$('vectorMode').value==='cadsvg')warnings.push('SVG 清理已启用：当前使用栅格轮廓以遵守排除区；原生 SVG 曲线参数将被近似。');}if(result.redraw?.applied)warnings.push('当前 DXF 轮廓来自参考图手工/规则化重绘，原图像素只作为参考；请核对关键尺寸。');
 const sym=result.symmetry;
 if(sym){
  const percent=n=>(100*n).toFixed(1)+'%';
@@ -1767,7 +1992,7 @@ function segmentId(s){return (s.hole?'H':'O')+(s.loopIndex+1)+'-'+(s.edgeIndex+1
 function renderSegments(){let body=$('segmentsBody');body.replaceChildren();$('segmentTotal').textContent=segments.length+' 条线段；表格展示前 500 条，CSV 包含全部。';let shown=segments.slice(0,500);for(let [i,s] of shown.entries()){let tr=document.createElement('tr');if(i===selectedSegment)tr.className='selected';let cells=[segmentId(s),s.hole?'孔洞':'外轮廓',`(${mm(s.x1)}, ${mm(s.y1)})`,`(${mm(s.x2)}, ${mm(s.y2)})`,mm(s.length)];for(let value of cells){let td=document.createElement('td');td.textContent=value;tr.appendChild(td);}tr.onclick=()=>selectSegment(i);body.appendChild(tr);}let s=segments[selectedSegment];$('selectedInfo').textContent=s?`${segmentId(s)}：长度 ${mm(s.length)} mm，Δx ${mm(s.dx)} mm，Δy ${mm(s.dy)} mm`:'等待轮廓…';}
 function selectSegment(i){selectedSegment=i;if(editorOn&&segments[i]){editSelected={kind:'edge',loopIndex:segments[i].loopIndex,index:segments[i].edgeIndex};connectStart=null;updateEditorControls();}renderSegments();chooseView('vector');}
 function clearDownload(){generatedCode='';$('codeText').value='';$('codeCopy').disabled=true;$('codeDownload').disabled=true;$('codeStatus').textContent='图案已变化，请重新生成代码。';if(downloadUrl){URL.revokeObjectURL(downloadUrl);downloadUrl=null;}dxfContent='';$('dxfText').value='';$('export').removeAttribute('href');$('directDownload').removeAttribute('href');}
-function prepareDownload(){clearDownload();dxfContent=FSSCore.dxf(geometry,{entity:$('entity').value,guide:$('guide').checked});downloadUrl=URL.createObjectURL(new Blob([dxfContent],{type:'application/dxf'}));$('export').href=downloadUrl;$('directDownload').href=downloadUrl;$('export').download=$('directDownload').download=imageName+'_'+fmt(geometry.width)+'x'+fmt(geometry.height)+'mm.dxf';$('exportStatus').textContent='DXF 已准备好，可点击下载（'+(new Blob([dxfContent]).size/1024).toFixed(1)+' KB）。可使用另存为或直接下载。';if(document.querySelector('.download-help').open)$('dxfText').value=dxfContent;}
+function prepareDownload(){if(!FSSCore.checkPixelOverrides(result.loops,result))throw Error('导出轮廓改变了标注排除区或结构保护区，请撤销编辑或调整清理范围。');clearDownload();dxfContent=FSSCore.dxf(geometry,{entity:$('entity').value,guide:$('guide').checked});downloadUrl=URL.createObjectURL(new Blob([dxfContent],{type:'application/dxf'}));$('export').href=downloadUrl;$('directDownload').href=downloadUrl;$('export').download=$('directDownload').download=imageName+'_'+fmt(geometry.width)+'x'+fmt(geometry.height)+'mm.dxf';$('exportStatus').textContent='DXF 已准备好，可点击下载（'+(new Blob([dxfContent]).size/1024).toFixed(1)+' KB）。可使用另存为或直接下载。';if(document.querySelector('.download-help').open)$('dxfText').value=dxfContent;}
 function draw(){const c=$('preview'),ctx=c.getContext('2d');c.width=900;c.height=650;ctx.clearRect(0,0,900,650);ctx.fillStyle='#fff';ctx.fillRect(0,0,900,650);if(view==='original'){let s=Math.min(800/source.width,540/source.height),x=(900-source.width*s)/2,y=(650-source.height*s)/2;ctx.drawImage(source,x,y,source.width*s,source.height*s);try{let b=bounds();ctx.fillStyle='#ffffffaa';ctx.fillRect(x,y,source.width*s,b.y*s);ctx.fillRect(x,y+(b.y+b.h)*s,source.width*s,(source.height-b.y-b.h)*s);ctx.fillRect(x,y+b.y*s,b.x*s,b.h*s);ctx.fillRect(x+(b.x+b.w)*s,y+b.y*s,(source.width-b.x-b.w)*s,b.h*s);ctx.strokeStyle='#008b84';ctx.lineWidth=2;ctx.strokeRect(x+b.x*s,y+b.y*s,b.w*s,b.h*s);}catch(e){}return;}
 if(!result||!geometry){ctx.fillStyle='#617381';ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText(busy?'正在计算图案…':'请检查参数或重新上传图片',450,325);return;}
 if(view==='binary'){let a=document.createElement('canvas');a.width=result.w;a.height=result.h;let t=a.getContext('2d'),d=t.createImageData(result.w,result.h);for(let i=0;i<result.mask.length;i++){let v=result.mask[i]?25:255;d.data[i*4]=v;d.data[i*4+1]=v;d.data[i*4+2]=v;d.data[i*4+3]=255;}t.putImageData(d,0,0);let s=Math.min(780/result.w,530/result.h);ctx.imageSmoothingEnabled=false;ctx.drawImage(a,(900-result.w*s)/2,(650-result.h*s)/2,result.w*s,result.h*s);return;}
@@ -1804,6 +2029,7 @@ function commitEditor(action,message){
  if(!result)return;
  try{
   const updated=FSSCore.editContours(result.loops,action);
+  if(!updated.some(l=>l.open)&&!FSSCore.checkPixelOverrides(updated,result))throw Error('修改进入了排除区或改变了保护区。请先调整标注清理范围。');
   editUndo.push(FSSCore.cloneLoops(result.loops));
   if(editUndo.length>60)editUndo.shift();
   editRedo=[];
@@ -1926,7 +2152,7 @@ function adjustEditorZoom(target,clientX,clientY){
 }
 
 function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
-function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.6.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,sdf_smoothing:Number($('sdfSmoothing').value)/100,svg_input:!!svgText,advanced_method:result.advanced||null,reference_redraw:result.redraw||null,hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
+function report(){let b=bounds();return {tool:'FSS Pattern Lab',version:'1.7.0',image:imageName,original_pixels:[source.width,source.height],crop:b,processing_pixels:[result.w,result.h],threshold:Number($('threshold').value),metal:$('polarity').value,minimum_component_pixels:Number($('minPixels').value),material_mode:$('materialMode').value,metal_color:$('materialMode').value==='color'?$('metalColor').value:null,color_tolerance:$('materialMode').value==='color'?Number($('colorTolerance').value):null,vector_mode:$('vectorMode').value,fit_tolerance_px:$('vectorMode').value!=='exact'?Number($('fitTolerance').value):0,sdf_smoothing:Number($('sdfSmoothing').value)/100,svg_input:!!svgText,advanced_method:result.advanced||null,reference_redraw:result.redraw||null,annotation_cleanup:{...cleanupCtrl.report(),statistics:result.cleanup||null},hybrid_summary:result.hybrid||null,native_curves:geometry.loops.map(l=>l.curves||null),symmetry_mode:$('symmetryMode').value,symmetry_threshold:Number($('symmetryThreshold').value)/100,symmetry_scores:result.symmetry?result.symmetry.scores:null,symmetry_axes:result.symmetry?result.symmetry.axes:[],symmetry_straightened_segments:result.symmetryStraightened||0,symmetry_removed_vertices:result.symmetryVerticesRemoved||0,symmetry_exact_mirrored_segments:result.symmetrySnappedSegments||0,smoothed_contours:result.smoothed,straightened_diagonal_runs:result.straightenedRuns||0,removed_staircase_vertices:result.staircaseVerticesRemoved||0,boundary_pixels_changed:result.changedPixels,removed_components:result.removed,units:'mm',reference:$('reference').value,size_mm:[geometry.width,geometry.height],scale_mm_per_pixel:[geometry.sx,geometry.sy],origin:$('origin').value,entities:$('entity').value,guide:$('guide').checked,outer_contours:result.loops.filter(q=>!q.hole).length,hole_contours:result.loops.filter(q=>q.hole).length,diagonal_contacts:result.diagonal,manual_editing:true,open_contours:result.loops.filter(q=>q.open).length,loops:geometry.loops};}
 $('export').onclick=e=>{if(!geometry||busy||!dxfContent){e.preventDefault();return;}$('exportStatus').textContent='已请求下载：'+$('export').download+'。如未保存，请点击“直接下载 DXF 文件”。';};$('saveAs').onclick=async()=>{if(!geometry||busy||!dxfContent)return;let name=$('directDownload').download;if(typeof window.showSaveFilePicker==='function'){try{let handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'DXF CAD 图案',accept:{'application/dxf':['.dxf']}}]});let stream=await handle.createWritable();await stream.write(new Blob([dxfContent],{type:'application/dxf'}));await stream.close();$('exportStatus').textContent='已保存：'+name;return;}catch(err){$('exportStatus').textContent=err.name==='AbortError'?'已取消保存。':'浏览器未允许另存为：'+err.message+'。请点击“直接下载 DXF 文件”。';return;}}$('exportStatus').textContent='正在请求下载：'+name+'。若未保存，请点击“直接下载 DXF 文件”。';$('directDownload').click();};$('directDownload').onclick=()=>{if(!geometry||busy)return false;$('exportStatus').textContent='已请求直接下载：'+$('directDownload').download+'。如仍被浏览器阻止，请使用 DXF 文本备用入口。';};$('copyDxf').onclick=async()=>{if(!dxfContent)return;try{await navigator.clipboard.writeText(dxfContent);$('exportStatus').textContent='DXF 文本已复制，请保存为 .dxf 文件。';}catch(e){$('dxfText').focus();$('dxfText').select();$('exportStatus').textContent='请复制已选中的 DXF 文本，保存为 .dxf 文件。';}};document.querySelector('.download-help').addEventListener('toggle',e=>{if(e.target.open)$('dxfText').value=dxfContent;});$('segmentCsv').onclick=()=>{if(!segments.length)return;let rows=['ID,loop_type,x1_mm,y1_mm,x2_mm,y2_mm,dx_mm,dy_mm,length_mm',...segments.map(s=>[segmentId(s),s.hole?'hole':'outer',s.x1,s.y1,s.x2,s.y2,s.dx,s.dy,s.length].join(','))];download('\ufeff'+rows.join('\r\n'),imageName+'_segments.csv','text/csv;charset=utf-8');};$('report').onclick=()=>{if(geometry&&!busy)download(JSON.stringify(report(),null,2),imageName+'_parameters.json','application/json');};$('offline').onclick=()=>download('<!doctype html>\n'+document.documentElement.outerHTML,'FSS_Pattern_Lab.html','text/html');
 function generateCode(){
  if(!geometry||busy||FSSCore.openContours(geometry)){generatedCode='';$('codeStatus').textContent='图案没有有效闭合轮廓，无法生成代码。';return;}
@@ -1949,17 +2175,17 @@ $('codeCopy').onclick=async()=>{
 };
 $('codeDownload').onclick=()=>{if(!generatedCode)return;let suffix=$('codeKind').value==='dxf'?'_cst_dxf':'_pypssfss';download(generatedCode,imageName+suffix+'.py','text/x-python;charset=utf-8');$('codeStatus').textContent='已请求下载 Python 文件。';};
 function resetCrop(){for(let [id,v] of [['cropX',0],['cropY',0],['cropW',source.width],['cropH',source.height]])$(id).value=v;}
-function demo(){svgText=null;request++;source.width=400;source.height=400;let c=source.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,400,400);c.fillStyle='#111';c.fillRect(60,60,280,280);c.fillStyle='#fff';c.fillRect(105,105,190,190);c.fillStyle='#111';c.fillRect(180,180,40,40);imageName='fss_demo';renderThumbnail();$('filename').textContent='示例：带孔方环 + 中心金属岛 · 400 × 400 px';$('materialMode').value='gray';showMaterialSettings();$('polarity').value='dark';$('threshold').value=127;$('minPixels').value=1;resetCrop();schedule();}
+function demo(){svgText=null;request++;source.width=400;source.height=400;let c=source.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,400,400);c.fillStyle='#111';c.fillRect(60,60,280,280);c.fillStyle='#fff';c.fillRect(105,105,190,190);c.fillStyle='#111';c.fillRect(180,180,40,40);imageName='fss_demo';renderThumbnail();$('filename').textContent='示例：带孔方环 + 中心金属岛 · 400 × 400 px';$('materialMode').value='gray';showMaterialSettings();$('polarity').value='dark';$('threshold').value=127;$('minPixels').value=1;resetCrop();cleanupCtrl?.reset();schedule();}
 function autoSelectMetal(){let size=256/maxNumber(source.width,source.height);size=Math.min(1,size);let sample=document.createElement('canvas');sample.width=Math.max(1,Math.round(source.width*size));sample.height=Math.max(1,Math.round(source.height*size));let c=sample.getContext('2d',{willReadFrequently:true});c.drawImage(source,0,0,sample.width,sample.height);let d=c.getImageData(0,0,sample.width,sample.height).data,warm=0,blue=0,sum=[0,0,0];for(let i=0;i<d.length;i+=4){let r=d[i],g=d[i+1],b=d[i+2];if(r>170&&g>145&&b<100&&r-b>100&&g-b>90){warm++;sum[0]+=r;sum[1]+=g;sum[2]+=b;}if(r<130&&g>100&&b>150&&b-r>90)blue++;}if(warm>d.length/4*.02&&blue>d.length/4*.05){$('materialMode').value='color';$('metalColor').value='#'+sum.map(v=>Math.round(v/warm).toString(16).padStart(2,'0')).join('');$('colorTolerance').value=80;}else $('materialMode').value='gray';showMaterialSettings();}
 function maxNumber(a,b){return Math.max(a,b);}
 function chooseView(value){view=value;document.querySelectorAll('[data-view]').forEach(t=>t.classList.toggle('active',t.dataset.view===value));draw();}
 function renderThumbnail(){let c=$('sourceThumb');c.width=280;c.height=Math.max(1,Math.round(280*source.height/source.width));let ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(source,0,0,c.width,c.height);}
 function useSample(ix,iy){let d=source.getContext('2d',{willReadFrequently:true}).getImageData(ix,iy,1,1).data,a=d[3]/255,v=[0,1,2].map(k=>Math.round(d[k]*a+255*(1-a)));$('metalColor').value='#'+v.map(k=>k.toString(16).padStart(2,'0')).join('');$('materialMode').value='color';showMaterialSettings();pickingMetal=false;$('preview').style.cursor='';chooseView('vector');schedule();}
 function sampleOriginalColor(e){if(!pickingMetal||view!=='original')return;let canvas=$('preview'),rect=canvas.getBoundingClientRect(),xx=(e.clientX-rect.left)*canvas.width/rect.width,yy=(e.clientY-rect.top)*canvas.height/rect.height,s=Math.min(800/source.width,540/source.height),x=(900-source.width*s)/2,y=(650-source.height*s)/2,ix=Math.floor((xx-x)/s),iy=Math.floor((yy-y)/s);if(ix<0||iy<0||ix>=source.width||iy>=source.height){setStatus('请点击图案内的金属区域取色。','warn');return;}useSample(ix,iy);}
-async function loadFile(file){if(!file)return;if(file.size>40*1024*1024){setStatus('图片超过 40 MB，请先缩小或裁切。','error');return;}let id=++request;disable(true);result=null;geometry=null;setStatus('正在读取图片…');let url=URL.createObjectURL(file);try{const isSVG=/\.svg$/i.test(file.name)||file.type==='image/svg+xml';const newSvgText=isSVG?await file.text():null;if(newSvgText&&(!/<svg[\s>]/i.test(newSvgText)||newSvgText.length>3000000))throw Error('SVG 文件无效或体积过大。');let img=new Image();img.src=url;await img.decode();if(id!==request)return;if(img.width*img.height>40000000)throw Error('原图超过 4000 万像素，请先缩小。');source.width=img.width;source.height=img.height;source.getContext('2d').drawImage(img,0,0);imageName=file.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N}_-]/gu,'_').slice(0,80)||'fss_pattern';renderThumbnail();$('filename').textContent=file.name+' · '+img.width+' × '+img.height+' px';resetCrop();autoSelectMetal();svgText=newSvgText;if(isSVG){$('vectorMode').value='cadsvg';showVectorMode();}schedule();}catch(e){if(id===request){disable(false);setStatus('无法读取该图片：'+e.message,'error');draw();}}finally{URL.revokeObjectURL(url);}}
+async function loadFile(file){if(!file)return;if(file.size>40*1024*1024){setStatus('图片超过 40 MB，请先缩小或裁切。','error');return;}let id=++request;disable(true);result=null;geometry=null;setStatus('正在读取图片…');let url=URL.createObjectURL(file);try{const isSVG=/\.svg$/i.test(file.name)||file.type==='image/svg+xml';const newSvgText=isSVG?await file.text():null;if(newSvgText&&(!/<svg[\s>]/i.test(newSvgText)||newSvgText.length>3000000))throw Error('SVG 文件无效或体积过大。');let img=new Image();img.src=url;await img.decode();if(id!==request)return;if(img.width*img.height>40000000)throw Error('原图超过 4000 万像素，请先缩小。');source.width=img.width;source.height=img.height;source.getContext('2d').drawImage(img,0,0);imageName=file.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N}_-]/gu,'_').slice(0,80)||'fss_pattern';renderThumbnail();$('filename').textContent=file.name+' · '+img.width+' × '+img.height+' px';resetCrop();cleanupCtrl?.reset();autoSelectMetal();svgText=newSvgText;if(isSVG){$('vectorMode').value='cadsvg';showVectorMode();}schedule();}catch(e){if(id===request){disable(false);setStatus('无法读取该图片：'+e.message,'error');draw();}}finally{URL.revokeObjectURL(url);}}
 $('file').onchange=e=>loadFile(e.target.files[0]);for(let ev of ['dragenter','dragover'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('drag');});for(let ev of ['dragleave','drop'])$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('drag');});$('drop').addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));$('demo').onclick=demo;$('fullCrop').onclick=()=>{resetCrop();schedule();};$('auto').onclick=()=>{try{let d=prep();$('threshold').value=FSSCore.otsu(d.data);schedule();}catch(e){setStatus(e.message,'error');}};
 function showVectorMode(){const m=$('vectorMode').value;const notes={potrace:'Potrace 风格：内置路径追踪、角点保护和二次 Bézier 平滑。非官方 Potrace，曲线以采样线段导出。',marching:'Marching Squares：利用图像灰度或颜色连续场计算亚像素等值线，适合斜边及抗锯齿图像。',ransac:'RANSAC + 直线、圆弧：对连续点进行确定性鲁棒线段识别，优先保留真实圆弧和金属间隙。',sdf:'Level Set / SDF：用 8 邻域距离变换构造连续距离场并提取零等值线；细小结构可能触发保守回退。',cadsvg:'参数化 CAD / SVG：SVG 上传时直接解析矢量矩形、圆和闭合路径；PNG/JPG 则识别圆、矩形和线段。SVG 曲线会受采样精度限制。',hybrid:'旧版智能混合重建：采用斜线修复及圆弧识别。',fit:'旧版自适应直线拟合：以像素轮廓进行局部修复。',exact:'原始精确像素边界，不进行曲线重建。'};$('modeInfo').textContent=notes[m];$('sdfSetting').classList.toggle('hidden',m!=='sdf');$('fitSetting').classList.toggle('hidden',m==='exact');$('sdfValue').textContent=$('sdfSmoothing').value+'%';}
-for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='symmetryThreshold')$('symmetryThresholdValue').textContent=$('symmetryThreshold').value+'%';if(id==='vectorMode'||id==='sdfSmoothing')showVectorMode();if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击黄色金属区域。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
+for(let id of controls)$(id).addEventListener('input',()=>{if(id==='materialMode')showMaterialSettings();if(id==='colorTolerance')$('colorToleranceValue').textContent=$('colorTolerance').value;if(id==='symmetryThreshold')$('symmetryThresholdValue').textContent=$('symmetryThreshold').value+'%';if(id==='vectorMode'||id==='sdfSmoothing')showVectorMode();if(['width','height','lock','origin','entity','guide'].includes(id)){updateScale(id);return;}schedule();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.view));$('pickMetal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';setStatus('请在原始图片上点击主体金属的颜色；填色图优先点内部填充色，避免选到同色标注。','ok');};$('preview').addEventListener('click',e=>{if(view==='original'){sampleOriginalColor(e);return;}if(view==='vector'&&editorOn){editorClick(e);return;}if(view!=='vector'||!geometry||!segments.length)return;let c=$('preview'),r=c.getBoundingClientRect(),px=(e.clientX-r.left)*c.width/r.width,py=(e.clientY-r.top)*c.height/r.height,g=geometry,s=Math.min(740/g.width,480/g.height),x=(900-g.width*s)/2,y=(650-g.height*s)/2,best=-1,distance=18*18;segments.forEach((seg,i)=>{let ax=x+(seg.x1+g.ox)*s,ay=y+(g.height-seg.y1-g.oy)*s,bx=x+(seg.x2+g.ox)*s,by=y+(g.height-seg.y2-g.oy)*s,dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy||1))),d=(px-ax-t*dx)**2+(py-ay-t*dy)**2;if(d<distance){distance=d;best=i;}});if(best>=0)selectSegment(best);});$('sourceThumb').onclick=e=>{let c=e.currentTarget,r=c.getBoundingClientRect(),ix=Math.min(source.width-1,Math.floor((e.clientX-r.left)*source.width/r.width)),iy=Math.min(source.height-1,Math.floor((e.clientY-r.top)*source.height/r.height));if(ix>=0&&iy>=0)useSample(ix,iy);};$('showOriginal').onclick=()=>{pickingMetal=true;chooseView('original');$('preview').style.cursor='crosshair';$('preview').scrollIntoView({behavior:'smooth',block:'center'});};
 $('editToggle').onclick=()=>{
  if(!result||!geometry||busy)return;
  editorOn=!editorOn;editSelected=null;connectStart=null;
@@ -2020,11 +2246,27 @@ document.addEventListener('keydown',event=>{
  }
 });
 $('dimensionMode').onchange=draw;
+const cleanupReferences=new WeakMap();
+function cleanupReferenceCanvas(){
+ if(!result?.cleanup?.active)return working;
+ if(cleanupReferences.has(result))return cleanupReferences.get(result);
+ const c=document.createElement('canvas');c.width=result.w;c.height=result.h;
+ const ctx=c.getContext('2d');ctx.drawImage(working,0,0);const img=ctx.getImageData(0,0,c.width,c.height),color=$('materialMode').value==='color'?colorRgb():[$('polarity').value==='light'?255:17,$('polarity').value==='light'?255:17,$('polarity').value==='light'?255:17],bg=$('materialMode').value!=='color'&&$('polarity').value==='light'?0:255;
+ for(let i=0;i<result.pixelOverrides.length;i++){const code=result.pixelOverrides[i];if(code===1||code===3){img.data.set(code===1?[bg,bg,bg,255]:[...color,255],i*4);}}
+ ctx.putImageData(img,0,0);cleanupReferences.set(result,c);return c;
+}
+cleanupCtrl=FSSCleanupUI.init({
+ getSource:()=>source,getBounds:()=>bounds(),getResult:()=>result,
+ invalidate:()=>{clearTimeout(timer);request++;geometry=null;result=null;segments=[];clearDownload();disable(true);resetEditor(true);redrawCtrl?.reset();},
+ change:()=>schedule(),
+ analyze:()=>{const img=prep();return FSSCore.vectorize(img.data,img.width,img.height,{threshold:Number($('threshold').value),light:$('polarity').value==='light',materialMode:$('materialMode').value,color:colorRgb(),colorTolerance:Number($('colorTolerance').value),minPixels:1,vectorMode:'exact',smooth:false,pixelOverrides:cleanupCtrl.overrides(img.width,img.height)});}
+});
 redrawCtrl=FSSRedrawUI.init({
  getResult:()=>result,
- getCanvas:()=>working,
+ getCanvas:()=>cleanupReferenceCanvas(),
  apply:(loops,metadata)=>{
   if(!result)throw Error('当前没有识别结果');
+  if(!FSSCore.checkPixelOverrides(loops,result))throw Error('重绘改变了排除区或保护区，请先调整标注清理范围。');
   resetEditor(true);
   result={...result,loops,bounds:FSSRedraw.bounds(loops),redraw:metadata};
   autoLoops=FSSCore.cloneLoops(loops);

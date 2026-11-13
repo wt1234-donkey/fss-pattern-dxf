@@ -50,7 +50,7 @@ assert(!R.evaluate(invalid,ref,{skipMask:true}).ok,'self-intersecting loop must 
 const noHole=R.clone(initial);noHole.loops.pop();
 assert(!R.evaluate(noHole,reference).ok,'missing hole must be rejected');
 const html=fs.readFileSync('index.html','utf8');
-for(const [id,file] of [['core-code','core.js'],['advanced-code','advanced.js'],['redraw-code','redraw.js'],['redraw-ui-code','redraw-ui.js'],['codegen-code','codegen.js']]){
+for(const [id,file] of [['core-code','core.js'],['advanced-code','advanced.js'],['redraw-code','redraw.js'],['redraw-ui-code','redraw-ui.js'],['cleanup-code','cleanup.js'],['cleanup-ui-code','cleanup-ui.js'],['codegen-code','codegen.js']]){
  const hit=html.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)<\\/script>'));
  assert(hit,'missing inline '+id);
  const src=fs.readFileSync(file,'utf8');
@@ -58,7 +58,7 @@ for(const [id,file] of [['core-code','core.js'],['advanced-code','advanced.js'],
  new Function(hit[1]);
 }
 const scripts=[...html.matchAll(/<script(?: id="[^"]+")?>([\s\S]*?)<\/script>/g)];
-assert.equal(scripts.length,6);
+assert.equal(scripts.length,8);
 new Function(scripts[scripts.length-1][1]);
 for(const id of ['redrawCanvas','redrawStart','redrawAuto','redrawTool','redrawArcBulge','redrawApply','redrawUndo','redrawRedo','redrawSymmetry','redrawExport','redrawAllowDeviation'])assert(html.includes('id="'+id+'"'),'missing redraw UI '+id);
 assert(html.includes('redrawCtrl=FSSRedrawUI.init('));

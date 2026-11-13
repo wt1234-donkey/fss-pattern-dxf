@@ -19,3 +19,4 @@ jobs:
       - run: node advanced.test.cjs
       - run: node redraw.test.cjs
       - run: node codegen.test.cjs
+      - run: node cleanup.test.cjs

@@ -3,7 +3,7 @@
 'use strict';
 function area(p){let a=0;for(let i=0;i<p.length;i++){let q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return a/2;}
 function otsu(rgba){let h=new Float64Array(256),n=rgba.length/4,sum=0;for(let i=0;i<rgba.length;i+=4){let a=rgba[i+3]/255,v=Math.round((.2126*rgba[i]+.7152*rgba[i+1]+.0722*rgba[i+2])*a+255*(1-a));h[v]++;sum+=v;}let best=-1,t=127,c=0,s=0;for(let i=0;i<255;i++){c+=h[i];s+=i*h[i];if(!c||c===n)continue;let v=c*(n-c)*(s/c-(sum-s)/(n-c))**2;if(v>best){best=v;t=i;}}return t;}
-function clean(mask,w,h,min){if(min<=1)return 0;let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),removed=0;for(let i=0;i<mask.length;i++){if(!mask[i]||seen[i])continue;let head=0,tail=1;q[0]=i;seen[i]=1;while(head<tail){let p=q[head++],x=p%w,y=Math.floor(p/w);for(let j of [x>0?p-1:-1,x<w-1?p+1:-1,y>0?p-w:-1,y<h-1?p+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;q[tail++]=j;}}if(tail<min){removed++;for(let k=0;k<tail;k++)mask[q[k]]=0;}}return removed;}
+function clean(mask,w,h,min,overrides){if(min<=1)return 0;let seen=new Uint8Array(mask.length),q=new Int32Array(mask.length),removed=0;for(let i=0;i<mask.length;i++){if(!mask[i]||seen[i])continue;let head=0,tail=1;q[0]=i;seen[i]=1;while(head<tail){let p=q[head++],x=p%w,y=Math.floor(p/w);for(let j of [x>0?p-1:-1,x<w-1?p+1:-1,y>0?p-w:-1,y<h-1?p+w:-1])if(j>=0&&mask[j]&&!seen[j]){seen[j]=1;q[tail++]=j;}}if(tail<min&&!(overrides&&q.subarray(0,tail).some(i=>overrides[i]===2||overrides[i]===3))){removed++;for(let k=0;k<tail;k++)mask[q[k]]=0;}}return removed;}
 function contours(mask,w,h){const stride=w+1,out=new Map();let edgeCount=0;function edge(x,y,xx,yy,d){let a=y*stride+x,b=yy*stride+xx;let e={a,b,d,used:false};if(!out.has(a))out.set(a,[]);out.get(a).push(e);if(++edgeCount>450000)throw Error('轮廓边缘过多。请降低处理分辨率、裁掉文字标注或提高去噪阈值。');}
 let pixels=0,bounds=[w,h,0,0],diagonal=0;function on(x,y){return x>=0&&y>=0&&x<w&&y<h&&mask[y*w+x];}
 for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(!on(x,y))continue;pixels++;bounds[0]=Math.min(bounds[0],x);bounds[1]=Math.min(bounds[1],y);bounds[2]=Math.max(bounds[2],x+1);bounds[3]=Math.max(bounds[3],y+1);if(!on(x,y-1))edge(x+1,y,x,y,2);if(!on(x-1,y))edge(x,y,x,y+1,1);if(!on(x,y+1))edge(x,y+1,x+1,y+1,0);if(!on(x+1,y))edge(x+1,y+1,x+1,y,3);if(x<w-1&&y<h-1){let a=on(x+1,y),b=on(x,y+1),c=on(x+1,y+1);if(!a&&!b&&c)diagonal++;}if(x>0&&y<h-1&&!on(x-1,y)&&!on(x,y+1)&&on(x-1,y+1))diagonal++;}
@@ -470,7 +470,26 @@ function hybridContours(raw,tolerance,settings){
  return {...base,loops,hybrid:{arcs,lines,rejected,changedPixels:changed}};
 }
 
-function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}let removed=clean(mask,w,h,opt.minPixels||1),raw={...contours(mask,w,h),mask,w,h,removed};let tol=Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25));return opt.vectorMode==='hybrid'?hybridContours(raw,tol,opt):smoothContours(raw,opt.smooth===false?0:tol,opt);}
+// User exclusions and protected foreground/background are hard fitting constraints.
+function checkPixelOverrides(loops,reference){
+ const codes=reference.pixelOverrides;if(!codes)return true;
+ const drawn=rasterize(loops,reference.w,reference.h);if(!drawn)return false;
+ for(let i=0;i<codes.length;i++)if(codes[i]&&(codes[i]===1?drawn[i]!==0:codes[i]===3?drawn[i]!==1:drawn[i]!==reference.mask[i]))return false;
+ return true;
+}
+function vectorize(rgba,w,h,opt){if(w*h>4194304)throw Error('处理像素超过上限。');let mask=new Uint8Array(w*h),colorMode=opt.materialMode==='color',target=opt.color||[255,255,0],tolerance=Number(opt.colorTolerance??80);if(colorMode&&(!Array.isArray(target)||target.length!==3||!target.every(v=>Number.isInteger(v)&&v>=0&&v<=255)||!Number.isFinite(tolerance)||tolerance<0||tolerance>255))throw Error('金属取样颜色或颜色容差无效。');let tol2=tolerance*tolerance;for(let i=0;i<mask.length;i++){let j=i*4,a=rgba[j+3]/255,r=rgba[j]*a+255*(1-a),g=rgba[j+1]*a+255*(1-a),b=rgba[j+2]*a+255*(1-a);if(colorMode){let dr=r-target[0],dg=g-target[1],db=b-target[2];mask[i]=dr*dr+dg*dg+db*db<=tol2;}else{let v=.2126*r+.7152*g+.0722*b;mask[i]=opt.light?v>opt.threshold:v<=opt.threshold;}}const codes=opt.pixelOverrides;
+let cleanup={active:false,excludedPixels:0,protectedPixels:0,metalPixels:0,removedMetalPixels:0,addedMetalPixels:0};
+if(codes){
+ if(codes.length!==mask.length)throw Error('标注清理掩膜与当前处理尺寸不一致。');
+ for(let i=0;i<codes.length;i++){
+  const code=codes[i];if(!Number.isInteger(code)||code<0||code>3)throw Error('标注清理掩膜包含无效值。');
+  if(code)cleanup.active=true;
+  if(code===1){cleanup.excludedPixels++;cleanup.removedMetalPixels+=mask[i];mask[i]=0;}
+  else if(code===2)cleanup.protectedPixels++;
+  else if(code===3){cleanup.metalPixels++;cleanup.addedMetalPixels+=1-mask[i];mask[i]=1;}
+ }
+}
+let removed=clean(mask,w,h,opt.minPixels||1,codes),raw={...contours(mask,w,h),mask,w,h,removed,cleanup,...(cleanup.active?{pixelOverrides:codes}:{})};let tol=Math.max(.5,Math.min(2,Number(opt.tolerance)||1.25));const fitted=opt.vectorMode==='hybrid'?hybridContours(raw,tol,opt):smoothContours(raw,opt.smooth===false?0:tol,opt);if(!checkPixelOverrides(fitted.loops,raw)){return {...raw,cleanup:{...cleanup,fitFallback:true}};}return fitted;}
 function scale(result,opt){let b=opt.reference==='pattern'?result.bounds:[0,0,result.w,result.h];let bw=b[2]-b[0],bh=b[3]-b[1];let sx=opt.width/bw,sy=opt.height/bh;if(!Number.isFinite(sx)||!Number.isFinite(sy)||sx<=0||sy<=0)throw Error('宽高必须为正数。');let ox=opt.center?opt.width/2:0,oy=opt.center?opt.height/2:0;const xy=p=>[(p[0]-b[0])*sx-ox,(b[3]-p[1])*sy-oy];
 let uniform=Math.abs(sx-sy)<1e-9*Math.max(sx,sy);
 let loops=result.loops.map(q=>({hole:q.hole,open:!!q.open,points:q.points.map(xy),
@@ -489,5 +508,5 @@ function polygon(loop,layer){
  for(let s of path){add(10,num(s.start[0]),20,num(s.start[1]));if(s.kind==='arc')add(42,num(Math.tan(s.sweep/4)));}
 }
 for(let loop of g.loops)polygon(loop,loop.hole?'METAL_HOLE':'METAL_OUTER');if(options.guide)polygon({points:[[-g.ox,-g.oy],[g.width-g.ox,-g.oy],[g.width-g.ox,g.height-g.oy],[-g.ox,g.height-g.oy]]},'CELL_GUIDE');add(0,'ENDSEC',0,'EOF');return lines.join('\r\n')+'\r\n';}
-const api={detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,hybridContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
+const api={checkPixelOverrides,detectSymmetry,symmetryAssistedStraightening,cloneLoops,editContours,openContours,area,otsu,contours,smoothContours,hybridContours,vectorize,scale,measureSegments,dxf};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FSSCore=api;
 })(typeof self!=='undefined'?self:globalThis);

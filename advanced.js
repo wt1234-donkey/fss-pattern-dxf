@@ -85,6 +85,7 @@ function finePixel(mask,w,h,i){
  return 1+spans[0]+spans[1]<=2||1+spans[2]+spans[3]<=2;
 }
 function validCandidate(raw,loops,options={}){
+ if(!C.checkPixelOverrides(loops,raw))return {ok:false,why:'annotation exclusion or protected structure changed'};
  if(!loops.length||loops.length>1200||loops.some(l=>l.points.length<3||l.points.length>15000))return {ok:false,why:'invalid loop sizes'};
  const after=rasterize(loops,raw.w,raw.h);if(!after)return {ok:false,why:'invalid scanlines'};
  const initial=maskTopology(raw.mask,raw.w,raw.h),final=maskTopology(after,raw.w,raw.h);
