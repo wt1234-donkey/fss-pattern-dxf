@@ -316,6 +316,16 @@ function parametricRaster(raw,rgba,opt){
  return {loops,details:{parameterizedCircles:circles,parameterizedRectangles:rectangles,otherShapes:'line/arc fallback'}};
 }
 function generate(rgba,w,h,opt={}){
+ if(opt.boundaryMode==='stroke-center'){
+  const B=root.FSSStrokeBoundary||(typeof require==='function'?require('./stroke-boundary.js'):null);
+  if(!B)throw Error('描边中心重建模块未加载。');
+  const raw=C.vectorize(rgba,w,h,{...opt,vectorMode:'exact',smooth:false}),center=B.reconstruct(raw,opt,{rasterize,classify,distanceChamfer,contoursIso});
+  const prepared=new Uint8ClampedArray(w*h*4);
+  for(let i=0;i<center.mask.length;i++){const v=center.mask[i]?0:255;prepared.set([v,v,v,255],i*4);}
+  const result=generate(prepared,w,h,{...opt,boundaryMode:'region',materialMode:'gray',threshold:127,light:false});
+  return {...result,cleanup:{...result.cleanup,...raw.cleanup},drawingStroke:center.stats};
+ }
+
  if(!['potrace','marching','ransac','sdf','cadsvg'].includes(opt.vectorMode))return C.vectorize(rgba,w,h,opt);
  const raw=C.vectorize(rgba,w,h,{...opt,vectorMode:'exact',smooth:false}),mode=opt.vectorMode;
  let proposal;

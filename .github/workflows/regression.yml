@@ -20,3 +20,4 @@ jobs:
       - run: node redraw.test.cjs
       - run: node codegen.test.cjs
       - run: node cleanup.test.cjs
+      - run: node stroke-boundary.test.cjs
